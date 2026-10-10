@@ -271,6 +271,10 @@
       <div><kbd>Space</kbd>×2 Backflip</div>
       <div><kbd>N</kbd> Eat food</div>
       <div><kbd>M</kbd> Get $100</div>
+      <div><kbd>← →</kbd> Sword swipes (holding a sword)</div>
+      <div><kbd>↑</kbd> Jab · <kbd>↓</kbd> Slam</div>
+      <div><kbd>N</kbd> / <kbd>M</kbd> One hand / two hands (holding a sword)</div>
+      <div><kbd>V</kbd> First person / third person</div>
       <div><kbd>Q</kbd> Pick up worker</div>
       <div><kbd>L Shift</kbd> Run</div>
       <div><kbd>R Shift</kbd> Crouch / block with shield</div>
@@ -1148,7 +1152,7 @@ function animateHuman(h, st, dt){
     knR = 0.05 + Math.max(0, Math.sin(h.phase + 1.4 + Math.PI)) * 1.05 * amt;
     hipsX = 0.06 * amt;
     if(st.holding){ elR = -0.55; handR = 0.55; shR = -0.15 - s*0.25*amt; }
-    if(st.sword){ shR = -0.35 - s*0.12*amt; elR = -1.15; handR = 0; } // forearm forward, fist upright, blade straight up
+    if(st.sword){ shR = -0.35 - s*0.12*amt; elR = -1.15; handR = 0; if(st.fp){ shR = -0.95; elR = -0.8; shRz = -0.38; } if(st.two){ shL = shR; elL = st.fp ? -0.8 : -1.15; shLz = 0.42; shRz = st.fp ? -0.38 : -0.28; } } // in first person the sword is held up in front of you so you can see it; forearm forward, fist upright, blade straight up (both hands on the grip when two-handed)
     if(st.fishing){ shR = -0.7; elR = -0.3; handR = -0.5; }
   }
   let spineX = 0;
@@ -1158,7 +1162,15 @@ function animateHuman(h, st, dt){
     hipsY -= 0.3; spineX = 0.4; hipsX = 0;
     hpL = -1.0 - s*0.35*amt; hpR = -1.0 + s*0.35*amt; knL = knR = 1.55; shL += -0.3; shR += -0.3;
   }
-  if(st.swing >= 0){
+  if(st.swing >= 0 && st.kind && st.kind !== 'chop'){ // sword moves: wind up, strike at hitAt, then recover
+    const t = st.swing, h = st.hitAt || 0.5, w0 = h*0.55, wind = easeOut(clamp(t/w0, 0, 1)), hit = easeIn(clamp((t - w0)/(h - w0), 0, 1)), rec = clamp((t - h)/(1 - h), 0, 1);
+    const ph = (a, b, c, d) => t < w0 ? lerp(a, b, wind) : t < h ? lerp(b, c, hit) : lerp(c, d, rec); // value at rest -> wound up -> struck -> rest
+    if(st.kind === 'left' || st.kind === 'right'){ const dir = st.kind === 'left' ? 1 : -1; // blade held out flat, whole body twists through the swipe
+      shR = -1.35; elR = -0.25; handR = 1.35; shRz = ph(0.08, -dir*0.5, dir*0.5, 0.08); spineY = dir * ph(0, -0.95, 0.95, 0);
+    } else if(st.kind === 'jab'){ shR = ph(-0.35, -0.55, -1.5, -0.35); elR = ph(-1.15, -1.75, -0.05, -1.15); handR = ph(0.3, 1.5, 1.5, 0.3); spineX = ph(0, -0.05, 0.28, 0); spineY = ph(0, -0.3, 0.15, 0);
+    } else { shR = ph(-0.35, -3.0, -0.75, -0.35); elR = ph(-1.15, -0.45, -0.2, -1.15); handR = ph(0, -0.2, 1.35, 0.2); spineX = ph(0, -0.22, 0.6, 0); hipsY -= ph(0, 0, 0.18, 0); } // slam: up over your head, then down hard
+    if(st.two){ shL = shR; elL = elR; shLz = 0.42; shRz += -0.28; } else { shL = -0.2; elL = -0.6; }
+  } else if(st.swing >= 0){
     const a = swingAngle(st.swing);
     shR = a; shL = a * 0.85; elR = -0.35; elL = -0.5; shLz = 0.25; shRz = -0.12;
     handR = st.swing > 0.45 && st.swing < 0.7 ? 0.9 : 0.25;
@@ -2774,21 +2786,48 @@ const legendModel = makeSword({ trim: legendBlue, grip: new THREE.MeshStandardMa
 for(const m of [warriorModel, legendModel]){ m.rotation.set(0, 0, Math.PI/2); m.visible = false; toolHolder.add(m); }
 const isSword = k => k === 'sword' || k === 'warrior_sword' || k === 'legend_sword';
 // gear you wear: a shield on your left arm (Right Shift blocks) and a sheath on your hip that holds your sword when it's not in your hand
-const shieldModel = (() => { const g = new THREE.Group();
-  const sh = new THREE.Shape(); sh.moveTo(0, 0.3); sh.lineTo(0.24, 0.22); sh.lineTo(0.24, 0); sh.quadraticCurveTo(0.22, -0.22, 0, -0.34); sh.quadraticCurveTo(-0.22, -0.22, -0.24, 0); sh.lineTo(-0.24, 0.22); sh.lineTo(0, 0.3);
-  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.012, bevelSegments: 2 }), MAT.plank); g.add(body);
-  const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: false }), MAT.ironDark); rim.scale.set(1.08, 1.06, 1); rim.position.z = -0.012; g.add(rim);
-  for(const [w, h] of [[0.05, 0.6], [0.46, 0.05]]){ const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), MAT.iron); b.position.set(0, h > w ? -0.02 : 0.08, 0.06); g.add(b); }
-  const boss = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), MAT.gold); boss.position.set(0, 0.08, 0.07); g.add(boss);
-  g.traverse(m => { if(m.isMesh) m.castShadow = true; });
-  g.position.set(-0.07, -0.14, 0); g.rotation.y = -Math.PI/2; g.visible = false; player.parts.lEl.add(g); return g; })();
+const gear = { shield: { shape: 'heater', size: 'm', pattern: 'cross', front: null, rim: null, pat: null }, sheath: { pattern: 'plain', pat: null } };
+const SHIELD_SHAPES = {
+  heater: () => { const sh = new THREE.Shape(); sh.moveTo(0, 0.3); sh.lineTo(0.24, 0.22); sh.lineTo(0.24, 0); sh.quadraticCurveTo(0.22, -0.22, 0, -0.34); sh.quadraticCurveTo(-0.22, -0.22, -0.24, 0); sh.lineTo(-0.24, 0.22); sh.lineTo(0, 0.3); return sh; },
+  round:  () => { const sh = new THREE.Shape(); sh.absarc(0, 0, 0.29, 0, Math.PI*2, false); return sh; },
+  kite:   () => { const sh = new THREE.Shape(); sh.moveTo(0, 0.34); sh.quadraticCurveTo(0.27, 0.32, 0.24, 0.1); sh.quadraticCurveTo(0.2, -0.22, 0, -0.46); sh.quadraticCurveTo(-0.2, -0.22, -0.24, 0.1); sh.quadraticCurveTo(-0.27, 0.32, 0, 0.34); return sh; },
+  square: () => { const sh = new THREE.Shape(), w = 0.23, h = 0.28, r = 0.05; sh.moveTo(-w + r, h); sh.lineTo(w - r, h); sh.quadraticCurveTo(w, h, w, h - r); sh.lineTo(w, -h + r); sh.quadraticCurveTo(w, -h, w - r, -h); sh.lineTo(-w + r, -h); sh.quadraticCurveTo(-w, -h, -w, -h + r); sh.lineTo(-w, h - r); sh.quadraticCurveTo(-w, h, -w + r, h); return sh; },
+};
+const SHIELD_SIZE = { s: 0.8, m: 1, l: 1.25 }, SHIELD_BLOCK = { s: 0.4, m: 0.25, l: 0.15 }; // a bigger shield lets less damage through
+const gearMat = (hex, metal) => new THREE.MeshStandardMaterial({ color: hex, roughness: metal ? 0.4 : 0.8, metalness: metal ? 0.5 : 0, emissive: new THREE.Color(hex).multiplyScalar(metal ? 0.3 : 0.08) });
+const shieldModel = new THREE.Group(); shieldModel.rotation.y = -Math.PI/2; shieldModel.visible = false; player.parts.lEl.add(shieldModel);
+function buildShield(){
+  const g = shieldModel, c = gear.shield; for(const m of [...g.children]){ g.remove(m); m.geometry.dispose(); }
+  const sh = SHIELD_SHAPES[c.shape](), add = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+  const front = c.front ? new THREE.MeshStandardMaterial({ map: tex(C.concrete, 1), color: c.front, roughness: 0.8 }) : MAT.plank, rimM = c.rim ? gearMat(c.rim, true) : MAT.ironDark, patM = c.pat ? gearMat(c.pat, true) : MAT.iron;
+  add(new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.012, bevelSegments: 2 }), front);
+  add(new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: false }), rimM, 0, 0, -0.012).scale.set(1.08, 1.06, 1);
+  const Z = 0.06, bar = (w, h, x, y, rot = 0) => { add(new THREE.BoxGeometry(w, h, 0.02), patM, x, y, Z).rotation.z = rot; };
+  if(c.pattern === 'cross'){ bar(0.05, 0.5, 0, 0); bar(0.4, 0.05, 0, 0.08); }
+  else if(c.pattern === 'stripes'){ bar(0.36, 0.045, 0, 0.16); bar(0.38, 0.045, 0, 0.02); bar(0.3, 0.045, 0, -0.12); }
+  else if(c.pattern === 'chevron'){ for(const s of [-1, 1]){ bar(0.24, 0.05, s*0.085, 0.06, s*0.7); bar(0.24, 0.05, s*0.085, -0.1, s*0.7); } }
+  else if(c.pattern === 'ring') add(new THREE.TorusGeometry(0.15, 0.024, 8, 28), patM, 0, 0.02, Z);
+  else if(c.pattern === 'star'){ const st = new THREE.Shape(); for(let i=0;i<10;i++){ const a = Math.PI/2 + i*Math.PI/5, r = i % 2 ? 0.075 : 0.18; i ? st.lineTo(Math.cos(a)*r, Math.sin(a)*r) : st.moveTo(Math.cos(a)*r, Math.sin(a)*r); } add(new THREE.ExtrudeGeometry(st, { depth: 0.02, bevelEnabled: false }), patM, 0, 0.02, 0.05); }
+  if(c.pattern !== 'star') add(new THREE.SphereGeometry(0.06, 12, 10), MAT.gold, 0, c.pattern === 'cross' ? 0.08 : 0.02, 0.07);
+  const k = SHIELD_SIZE[c.size]; g.scale.setScalar(k); g.position.set(-0.07 - (k - 1)*0.02, -0.14, 0);
+}
+buildShield();
 const sheathModel = (() => { const g = new THREE.Group(), leather = new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.75 });
   const tube = new THREE.Mesh(new RoundedBoxGeometry(0.09, 0.7, 0.035, 2, 0.015), leather); tube.position.y = -0.35; g.add(tube);
   for(const y of [-0.03, -0.66]){ const c = new THREE.Mesh(new RoundedBoxGeometry(0.1, 0.07, 0.045, 2, 0.01), MAT.gold); c.position.y = y; g.add(c); }
   const strap = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.2), leather); strap.position.set(0, -0.02, 0.08); g.add(strap);
   const swords = {}; for(const [k, o] of [['sword', {}], ['warrior_sword', { trim: brickRed, blade: warriorModel.children[3].material }], ['legend_sword', { trim: legendBlue, blade: legendModel.children[3].material }]]){ const m = makeSword(o); m.rotation.x = Math.PI/2; m.position.y = 0.1; m.visible = false; g.add(m); swords[k] = m; }
   g.userData.swords = swords; g.traverse(m => { if(m.isMesh) m.castShadow = true; });
+  g.userData.pat = new THREE.Group(); g.add(g.userData.pat);
   g.position.set(-0.2, 0.08, 0.02); g.rotation.set(0.5, 0, 0.12); g.visible = false; player.parts.hips.add(g); return g; })();
+function buildSheathPattern(){ // decoration down both faces of the sheath
+  const g = sheathModel.userData.pat, c = gear.sheath, M = c.pat ? gearMat(c.pat, true) : MAT.gold; for(const m of [...g.children]){ g.remove(m); m.geometry.dispose(); }
+  const add = (geo, y, rot = 0) => { for(const z of [-0.02, 0.02]){ const m = new THREE.Mesh(geo, M); m.position.set(0, y, z); m.rotation.z = rot; g.add(m); } };
+  if(c.pattern === 'bands') for(const y of [-0.17, -0.29, -0.41, -0.53]) add(new THREE.BoxGeometry(0.096, 0.022, 0.012), y);
+  else if(c.pattern === 'studs') for(const y of [-0.14, -0.24, -0.34, -0.44, -0.54]) add(new THREE.SphereGeometry(0.014, 8, 6), y);
+  else if(c.pattern === 'stripe') add(new THREE.BoxGeometry(0.022, 0.52, 0.012), -0.345);
+  else if(c.pattern === 'diamonds') for(const y of [-0.16, -0.29, -0.42, -0.55]) add(new THREE.BoxGeometry(0.045, 0.045, 0.012), y, Math.PI/4);
+}
 function updateGear(){
   shieldModel.visible = has('shield');
   const sh = has('sheath'); sheathModel.visible = sh;
@@ -2864,6 +2903,50 @@ TARGETERS.push(c => { if(thrown.state !== 'landed') return; const p = thrown.mes
 PROMPTS.taxe = () => [['E', 'Pick up Throwing Axe']];
 INTERACT.taxe = () => pickUpThrown();
 
+// ================================================================ SWORD FIGHTING: four moves on the arrow keys, one or two hands, combos for mixing them up
+const SWORD_KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'jab', ArrowDown: 'slam' };
+const SWORD_MOVES = {
+  left:  { name: 'Left swipe',  dur: 0.5,  hitAt: 0.5,  dmg: 1.0, range: 2.7, dot: -0.05, multi: true }, // wide: hits everyone in front of you
+  right: { name: 'Right swipe', dur: 0.5,  hitAt: 0.5,  dmg: 1.0, range: 2.7, dot: -0.05, multi: true },
+  jab:   { name: 'Jab',         dur: 0.36, hitAt: 0.5,  dmg: 0.7, range: 3.6, dot: 0.9 },                 // fast and long, but you have to aim it
+  slam:  { name: 'Slam',        dur: 0.95, hitAt: 0.68, dmg: 2.2, range: 2.5, dot: 0.55, splash: 1.8 },   // slow and huge, shakes anyone close by
+};
+const fight = { twoHand: false, last: null, lastT: -9, combo: 0, clickLeft: false, fp: false };
+function setGrip(two){
+  if(fight.twoHand === two){ popup(two ? 'Already two-handed' : 'Already one-handed', P.pos.clone().add(V3(0, 2.4, 0)), '#cfe8ff'); return; }
+  fight.twoHand = two; popup(two ? 'Two hands: hits harder, swings slower, no shield' : 'One hand: swings faster, shield works', P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); renderHotbar();
+}
+function setFirstPerson(on){ fight.fp = on; if(!on) cam.pitch = clamp(cam.pitch, -0.15, 1.35); popup(on ? 'First person' : 'Third person', P.pos.clone().add(V3(0, 2.4, 0)), '#cfe8ff'); }
+function swordTargets(range, minDot){ // everything you could hit: enemies, animals and people
+  const out = [], sx = Math.sin(P.yaw), sz = Math.cos(P.yaw);
+  const add = (x, z, y, apply) => { const dx = x - P.pos.x, dz = z - P.pos.z, d = Math.hypot(dx, dz); if(d < range && Math.abs(y - P.pos.y) < 2.2 && (d < 0.7 || (dx*sx + dz*sz)/d > minDot)) out.push({ x, z, d, apply }); };
+  for(const f of ATTACKABLE) for(const a of f()) add(a.x, a.z, a.y ?? 0, dmg => a.hit(dmg));
+  for(const A of animals) if(A.alive) add(A.x, A.z, P.pos.y, (dmg, big) => { hitAnimal(A, big ? 3 : 2); if(!A.alive) skillXP('combat', 8); });
+  for(const n of allNPCs()) if(!n.dead) add(n.pos.x, n.pos.z, n.h.root.position.y, () => hitNPC(n));
+  return out.sort((a, b) => a.d - b.d);
+}
+function swordMove(kind){
+  if(!S.playing || S.dead || S.menu || S.invOpen || isFrozen() || plow.riding || P.swimming || !isSword(selKey()) || swing.t >= 0) return;
+  for(const f of USE_HOOKS) if(f()) return;
+  const M = SWORD_MOVES[kind], two = fight.twoHand, reach = swordReach(), now = clock.elapsedTime;
+  const near = swordTargets(M.range + reach + 0.6, 0.2)[0]; if(near && !fight.fp) faceTo(near.x, near.z); // in first person you aim it yourself
+  const fresh = now - fight.lastT < 2.2;
+  fight.combo = fresh && fight.last === kind ? -1 : fresh && fight.last ? Math.min(4, Math.max(0, fight.combo) + 1) : 0; // mix your moves up for a combo; the same move twice is weaker
+  fight.last = kind; fight.lastT = now;
+  const combo = fight.combo, mult = M.dmg * (two ? 1.5 : 1) * (combo < 0 ? 0.6 : 1 + 0.15*combo);
+  startSwing(() => {
+    const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
+    if(kind === 'slam') burst(V3(P.pos.x + fx*1.5, P.pos.y + 0.15, P.pos.z + fz*1.5), 0xd8d2c4, 14, { up: 0.9, spread: 1.8 });
+    const hits = swordTargets(M.range + reach, M.dot);
+    if(!hits.length){ sfx('cast'); return; }
+    const dmg = playerDamage() * mult;
+    if(M.multi) for(const h of hits) h.apply(dmg, false);
+    else { const first = hits[0]; first.apply(dmg, kind === 'slam'); if(M.splash) for(const o of swordTargets(M.range + reach + M.splash, -1)) if(o.x !== first.x || o.z !== first.z){ if(Math.hypot(o.x - first.x, o.z - first.z) < M.splash) o.apply(dmg*0.5, false); } }
+    const label = combo > 0 ? `${M.name} · Combo x${combo + 1}!` : combo < 0 ? `${M.name} — same move again, weaker!` : M.name;
+    popup(label, P.pos.clone().add(V3(0, 2.5, 0)), combo > 0 ? '#ffd166' : combo < 0 ? '#ffb3b3' : '#ffffff');
+  }, { kind, dur: M.dur * (two ? 1.3 : 1), hitAt: M.hitAt });
+}
+
 // ================================================================ BUILDER BILL'S CUSTOMIZATION: recolour your tools, homes and portal; longer sword blades
 const CUSTOM_COLORS = [['Red', '#d63a3a'], ['Orange', '#f08a24'], ['Yellow', '#f2d22e'], ['Green', '#3aa64a'], ['Teal', '#2bb5a8'], ['Blue', '#2f6fe0'], ['Purple', '#8a3fd6'], ['Pink', '#f06ab0'], ['White', '#f4f1ea'], ['Grey', '#8c9097'], ['Black', '#2a2a30'], ['Brown', '#7a4a28'], ['Gold', '#e0b030']];
 const COLOR_FEE = 50, LEN_COST = [200, 400, 800];
@@ -2892,14 +2975,21 @@ const CUSTOM_THINGS = [
   ...['sword', 'warrior_sword', 'legend_sword'].map(swordThing),
   toolThing('rod', () => [rodModel], 'Metal parts', 'Rod'),
   ...['hoe', 'scythe'].filter(k => ITEMS[k]).map(k => toolThing(k, () => [TOOL_MODELS[k]], 'Blade')),
-  toolThing('shield', () => [shieldModel], 'Metal rim', 'Front'),
-  toolThing('sheath', () => sheathModel.children.filter(c => c.isMesh), 'Metal caps', 'Leather'),
+  { id: 'shield', name: ITEMS.shield.name, icon: () => itemIcon({ k: 'shield', n: 1 }), owned: () => has('shield'),
+    parts: [['front', 'Front'], ['rim', 'Rim'], ['pat', 'Pattern']].map(([id, name]) => ({ id, name, meshes: () => [], paint: hex => { gear.shield[id] = hex; buildShield(); } })),
+    options: [
+      { id: 'shape', name: 'Shape', cost: 100, choices: [['heater', 'Classic'], ['round', 'Round'], ['kite', 'Kite'], ['square', 'Tower']], cur: () => gear.shield.shape, set: v => { gear.shield.shape = v; buildShield(); } },
+      { id: 'size', name: 'Size', cost: 100, note: 'Bigger shields block more damage', choices: [['s', 'Small · blocks 60%'], ['m', 'Medium · blocks 75%'], ['l', 'Large · blocks 85%']], cur: () => gear.shield.size, set: v => { gear.shield.size = v; buildShield(); } },
+      { id: 'pattern', name: 'Pattern', cost: 75, choices: [['cross', 'Cross'], ['stripes', 'Stripes'], ['chevron', 'Arrows'], ['ring', 'Ring'], ['star', 'Star'], ['plain', 'Plain']], cur: () => gear.shield.pattern, set: v => { gear.shield.pattern = v; buildShield(); } } ] },
+  { ...toolThing('sheath', () => sheathModel.children.filter(c => c.isMesh), 'Metal caps', 'Leather'),
+    options: [{ id: 'pattern', name: 'Pattern', cost: 75, choices: [['plain', 'Plain'], ['bands', 'Bands'], ['studs', 'Studs'], ['stripe', 'Stripe'], ['diamonds', 'Diamonds']], cur: () => gear.sheath.pattern, set: v => { gear.sheath.pattern = v; buildSheathPattern(); } }] },
   homeThing('house', 'Your Cottage'), homeThing('house2', 'Your House'), homeThing('mansion', 'Your Mansion'),
   { id: 'portal', name: 'Hub Portal', icon: () => `<span class="swatch" style="background:#8a3fd6"></span>`, owned: () => true, parts: [
     { id: 'frame', name: 'Frame', meshes: () => allMeshes(portal.group).filter(m => m.userData.part === 'frame') },
     { id: 'swirl', name: 'Swirl', meshes: () => [], paint: hex => { portal.mat.uniforms.uTint.value.set(hex); portal.mat.uniforms.uMix.value = 1; portal.light.color.set(hex); portal.moteM.color.set(hex).lerp(new THREE.Color(0xffffff), 0.4); } }] },
 ];
 for(const T of CUSTOM_THINGS) T.parts = T.parts.filter(p => p.paint || T.id.startsWith('home_') || p.meshes().length);
+CUSTOM_THINGS.find(t => t.id === 'sheath').parts.push({ id: 'pat', name: 'Pattern', meshes: () => [], paint: hex => { gear.sheath.pat = hex; buildSheathPattern(); } });
 // workers: each one keeps its own colours, even after you pick it up and put it down again
 const WORKER_PARTS = [['body', 'Body'], ['hat', 'Hat'], ['clothes', 'Clothes'], ['boots', 'Boots'], ['belt', 'Belt & straps']];
 const workerThing = w => { const W = workers.find(x => x.active && x.id === w.id), probe = W ? W.root : null;
@@ -2914,10 +3004,11 @@ MENUS.bill = ({ M, pills, row, btn }) => {
   const T = customThings().find(t => t.id === M.pick);
   if(!T){
     const owned = customThings().filter(t => t.owned());
-    h += `<h3>What should I customize?</h3><div class="rows">${owned.map(t => row(t.icon(), t.name, t.parts.map(p => p.name).join(' · ') + (t.sword ? ' · longer blade' : ''), btn('Customize', 'custPick', { id: t.id }, 'alt'))).join('')}</div><p class="sub">Tools show up here once you own them, homes once Builder Bob has built them, and every worker you own.</p>`;
+    h += `<h3>What should I customize?</h3><div class="rows">${owned.map(t => row(t.icon(), t.name, [...t.parts.map(p => p.name), ...(t.options || []).map(o => o.name.toLowerCase())].join(' · ') + (t.sword ? ' · longer blade' : ''), btn('Customize', 'custPick', { id: t.id }, 'alt'))).join('')}</div><p class="sub">Tools show up here once you own them, homes once Builder Bob has built them, and every worker you own.</p>`;
   } else {
     const cur = custom.colors[T.id] || {};
     h += `<h3>${T.name}</h3><div class="rows">${T.parts.map(p => row(`<span class="swatch" style="background:${cur[p.id] || 'rgba(255,255,255,0.12)'}"></span>`, p.name, `${cur[p.id] ? 'Painted ' + CUSTOM_COLORS.find(c => c[1] === cur[p.id])[0] : 'Original colour'} · ${money(COLOR_FEE)} per colour<div class="cswatches">${CUSTOM_COLORS.map(([n, c]) => `<button class="mbtn cswatch" data-act="custColor" data-part="${p.id}" data-c="${c}" title="${n}" aria-label="${p.name}: ${n}" style="background:${c}"></button>`).join('')}</div>`, '')).join('')}`;
+    for(const o of (T.options || [])) h += row(`<span class="swatch" style="background:rgba(255,255,255,0.12)"></span>`, o.name, `${money(o.cost)} per change${o.note ? ' · ' + o.note : ''}<div class="cswatches">${o.choices.map(([v, n]) => `<button class="mbtn ${o.cur() === v ? 'alt' : ''}" data-act="custOpt" data-opt="${o.id}" data-v="${v}" ${o.cur() === v ? 'disabled' : ''}>${n}</button>`).join('')}</div>`, '');
     if(T.sword){ const lv = custom.len[T.id] || 0; h += row(`<span class="swatch" style="background:#dfe4e8"></span>`, 'Longer blade', `Reaches farther with every level · level ${lv} / ${LEN_COST.length}${lv ? ' · ' + Math.round(lv*25) + '% longer' : ''}`, lv >= LEN_COST.length ? btn('Max length', 'noop', {}, '', true) : btn(`Make longer · ${money(LEN_COST[lv])}`, 'custLen', {}, 'alt', S.money < LEN_COST[lv])); }
     h += `</div><div class="rows">${row('', 'Customize something else', '', btn('Back', 'custBack'))}</div>`;
   }
@@ -2931,6 +3022,11 @@ MENU_ACTIONS.custColor = (ds, u) => {
   if(S.money < COLOR_FEE){ u.need(COLOR_FEE); return; }
   S.money -= COLOR_FEE; cur[p.id] = ds.c; if(p.paint) p.paint(ds.c); for(const m of p.meshes()) paintMesh(m, ds.c);
   u.msg(`${T.name}: ${p.name.toLowerCase()} painted ${CUSTOM_COLORS.find(c => c[1] === ds.c)[0].toLowerCase()}!`);
+};
+MENU_ACTIONS.custOpt = (ds, u) => {
+  const T = customThings().find(t => t.id === S.menu.pick), o = T && (T.options || []).find(q => q.id === ds.opt); if(!o || !T.owned() || o.cur() === ds.v || !o.choices.some(c => c[0] === ds.v)) return;
+  if(S.money < o.cost){ u.need(o.cost); return; }
+  S.money -= o.cost; o.set(ds.v); u.msg(`${T.name}: ${o.name.toLowerCase()} changed to ${o.choices.find(c => c[0] === ds.v)[1].split(' · ')[0].toLowerCase()}!`);
 };
 MENU_ACTIONS.custLen = (ds, u) => {
   const T = CUSTOM_THINGS.find(t => t.id === S.menu.pick); if(!T || !T.sword) return; const lv = custom.len[T.id] || 0; if(lv >= LEN_COST.length) return;
@@ -3512,7 +3608,7 @@ function makeFighter(o){
   const h = makeHuman({ shirt: o.shirt ?? pick([0x8a1e1e, 0x2f4f8a, 0x3a6a3a, 0x5a3a7a, 0x7a5a2a]), pants: 0x2a2a30, hair: o.hair ?? pick([0x2a1c12, 0x5a3a22, 0xd9b36a, 0x222222]), skin: o.skin ?? pick([0xdca47f, 0xb07a55, 0xf1c9a5, 0x8a5a3a]), hardhat: o.helmet ? 0x8e959c : undefined, beard: o.beard });
   const wpn = o.weapon === 'staff' ? (() => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 1.9, 8).rotateX(Math.PI/2).translate(0, 0, 0.5), MAT.darkWood)); const orb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), new THREE.MeshStandardMaterial({ color: 0xc080ff, emissive: 0x9030ff, emissiveIntensity: 2.5 })); orb.position.z = 1.45; g.add(orb); return g; })() : o.weapon === 'axe' ? makeAxe() : makeSword();
   h.parts.rHand.add(wpn); wpn.position.y = -0.04;
-  if(o.boss){ dressWizard(h); wpn.visible = false; }
+  if(o.boss){ dressWizard(h); wpn.visible = false; const W = h.wiz; W.sheathed.visible = false; (h.parts.lHand || h.parts.lEl).add(W.staff); const blade = W.longLegend(); blade.position.y = -0.04; blade.traverse(m => { if(m.isMesh) m.castShadow = true; }); h.parts.rHand.add(blade); } // in battle the sword is out of its sheath and in his hand; the staff moves to his other hand
   if(o.scale) h.root.scale.setScalar(o.scale);
   scene.add(h.root);
   const label = makeLabel(o.name, o.boss ? '#e0a0ff' : '#ffb3b3'); label.position.y = 2.25; h.root.add(label);
@@ -3539,7 +3635,7 @@ function finishArena(won){
 }
 function fightDamage(n){
   if(!arena.active || arena.done) return;
-  if(P.block){ n *= 0.25; popup('Blocked!', P.pos.clone().add(V3(0, 2.6, 0)), '#cfe8ff'); }
+  if(P.block){ n *= SHIELD_BLOCK[gear.shield.size]; popup('Blocked!', P.pos.clone().add(V3(0, 2.6, 0)), '#cfe8ff'); }
   arena.hp = Math.max(0, arena.hp - n); sfx('hit'); popup(`-${Math.round(n)}`, P.pos.clone().add(V3(0, 2.3, 0)), '#ff8a8a');
   burst(P.pos.clone().add(V3(0, 1.2, 0)), 0xb3312a, 6, { size: 0.8 });
   if(arena.hp <= 0) finishArena(false);
@@ -3884,8 +3980,8 @@ function dressWizard(h){
   for(const s of [-1, 1]){ const m = add(new THREE.CapsuleGeometry(0.022, 0.08, 4, 8), beardM, P_.head, s*0.045, 0.075, 0.108); m.rotation.z = s*1.15; }
   add(new THREE.SphereGeometry(0.12, 16, 12), beardM, P_.head, 0, 0.03, 0.06).scale.set(1, 0.9, 0.75); // full beard round the chin
   // the long part hangs from the chin down over the front of the robe, all the way to the floor
-  const beard = add(new THREE.LatheGeometry([[0.001, 0.02], [0.11, 0.0], [0.13, -0.18], [0.13, -0.55], [0.12, -0.95], [0.1, -1.3], [0.07, -1.52], [0.001, -1.62]].map(([r, y]) => new THREE.Vector2(r, y)), 24), beardM, h.root, 0, 1.76, 0.14);
-  beard.scale.z = 0.5; beard.rotation.x = -0.22;
+  const beard = add(new THREE.LatheGeometry([[0.001, 0.02], [0.11, 0.0], [0.13, -0.18], [0.13, -0.55], [0.12, -0.95], [0.1, -1.3], [0.07, -1.52], [0.001, -1.62]].map(([r, y]) => new THREE.Vector2(r, y)), 24), beardM, h.root, 0, 1.76, 0.18);
+  beard.scale.z = 0.5; beard.rotation.x = -0.3; // hangs clear in front of the robe and belt so nothing pokes through it
   // dark gnarled staff with a clawed top holding a crystal orb
   const staff = new THREE.Group(); P_.rHand.add(staff); staff.position.y = -0.04; staff.rotation.x = -1.75; staff.position.z = 0.1;
   const shaft = new THREE.CylinderGeometry(0.026, 0.034, 1.95, 8, 12); shaft.rotateX(Math.PI/2); shaft.translate(0, 0, 0.45); { const p = shaft.attributes.position; for(let i=0;i<p.count;i++){ const z = p.getZ(i); p.setX(i, p.getX(i) + Math.sin(z*7)*0.012); p.setY(i, p.getY(i) + Math.cos(z*5)*0.012); } shaft.computeVertexNormals(); }
@@ -3893,6 +3989,15 @@ function dressWizard(h){
   add(shaft, darkWood, staff);
   for(let i=0;i<5;i++){ const a = i/5*Math.PI*2, cl = add(new THREE.ConeGeometry(0.025, 0.32, 6), darkWood, staff, Math.cos(a)*0.09, Math.sin(a)*0.09, 1.52); cl.rotation.x = Math.PI/2; cl.rotation.y = -Math.cos(a)*0.35; cl.rotation.z = Math.sin(a)*0.35; }
   const orb = add(new THREE.SphereGeometry(0.1, 20, 16), new THREE.MeshStandardMaterial({ color: 0xdff2ff, metalness: 0.2, roughness: 0.05, envMap: envTex, transparent: true, opacity: 0.85, emissive: 0x8ab8ff, emissiveIntensity: 0.8 }), staff, 0, 0, 1.5);
+  // the longest legendary sword there is, in a sheath at his side (he draws it when you battle him)
+  const longLegend = () => makeSword({ trim: legendBlue, grip: new THREE.MeshStandardMaterial({ color: 0x1e3a9a, roughness: 0.6 }), blade: legendModel.children[3].material, len: 1.75 });
+  const sheath = new THREE.Group(), leather = new THREE.MeshStandardMaterial({ color: 0x2a1c4a, roughness: 0.7 });
+  add(new RoundedBoxGeometry(0.1, 1.34, 0.04, 2, 0.015), leather, sheath, 0, -0.67, 0);
+  for(const y of [-0.03, -0.45, -0.9, -1.31]) add(new RoundedBoxGeometry(0.115, 0.07, 0.05, 2, 0.01), MAT.gold, sheath, 0, y, 0);
+  add(new THREE.BoxGeometry(0.03, 0.03, 0.14), leather, sheath, 0, -0.03, 0.07);
+  const sheathed = longLegend(); sheathed.rotation.x = Math.PI/2; sheathed.position.y = 0.1; sheathed.traverse(m => { if(m.isMesh) m.castShadow = true; }); sheath.add(sheathed);
+  sheath.position.set(0.5, 1.28, 0.02); sheath.rotation.set(0.55, 0, 0.08); h.root.add(sheath); // hangs outside his robe, tip trailing behind him
+  h.wiz = { staff, sheathed, longLegend };
   h.st && (h.st.holding = true);
   return h;
 }
@@ -4110,7 +4215,7 @@ function renderHotbar(){
   let h = '';
   for(let i=0;i<HOTBAR;i++){ const s = S.slots[i]; h += `<div class="slot ${S.selIdx === i ? 'sel' : ''}" data-hb="${i}"><span class="key">${i + 1}</span>${itemIcon(s)}${itemBadge(s)}</div>`; }
   $('hotbar').innerHTML = h;
-  const s = selItem(); $('hbName').textContent = s ? itemName(s) + (ITEMS[s.k]?.food ? ` · N to eat (+${ITEMS[s.k].food} hunger)` : s.k === 'throw_axe' ? ' · T to throw' : ITEMS[s.k]?.potion ? ' · N to drink' : isBlock(s.k) ? ' · click where you want it' : '') : '';
+  const s = selItem(); $('hbName').textContent = s ? itemName(s) + (ITEMS[s.k]?.food ? ` · N to eat (+${ITEMS[s.k].food} hunger)` : isSword(s.k) ? ` · arrow keys attack · ${fight.twoHand ? 'two hands (N = one)' : 'one hand (M = two)'}` : s.k === 'throw_axe' ? ' · T to throw' : ITEMS[s.k]?.potion ? ' · N to drink' : isBlock(s.k) ? ' · click where you want it' : '') : '';
   if(S.invOpen) renderInventory();
 }
 $('hotbar').addEventListener('click', e => { const el = e.target.closest('[data-hb]'); if(el && S.playing) selectIdx(+el.dataset.hb); });
@@ -4348,6 +4453,10 @@ addEventListener('keydown', e => {
   if(e.code === 'KeyE') interact();
   if(e.code === 'Space') spaceAction();
   if(e.code === 'KeyF') useItem();
+  const swordOut = isSword(selKey());
+  if(swordOut && SWORD_KEYS[e.code]){ swordMove(SWORD_KEYS[e.code]); return; }
+  if(swordOut && (e.code === 'KeyN' || e.code === 'KeyM')){ setGrip(e.code === 'KeyM'); return; } // N = one hand, M = two hands
+  if(e.code === 'KeyV') setFirstPerson(!fight.fp);
   if(e.code === 'KeyN') eat();
   if(e.code === 'KeyT') throwAxe();
   if(e.code === 'KeyM'){ S.money += 100; popup('+$100', P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); }
@@ -4376,10 +4485,10 @@ addEventListener('mouseup', e => {
 addEventListener('mousemove', e => {
   mouseNDC.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   if(!S.playing || S.dead || S.menu || S.invOpen) return;
-  if(locked){ cam.yaw -= e.movementX * 0.0026; cam.pitch = clamp(cam.pitch + e.movementY * 0.002, -0.15, 1.35); }
+  if(locked){ cam.yaw -= e.movementX * 0.0026; cam.pitch = clamp(cam.pitch + e.movementY * 0.002, fight.fp ? -1.2 : -0.15, 1.35); }
   else if(dragStart){
     if(Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > 5) dragging = true;
-    if(dragging){ cam.yaw -= e.movementX * 0.005; cam.pitch = clamp(cam.pitch + e.movementY * 0.004, -0.15, 1.35); mouseHeld = false; }
+    if(dragging){ cam.yaw -= e.movementX * 0.005; cam.pitch = clamp(cam.pitch + e.movementY * 0.004, fight.fp ? -1.2 : -0.15, 1.35); mouseHeld = false; }
   }
 });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -4397,8 +4506,8 @@ let startedOnce = false;
 $('respawnBtn').addEventListener('click', respawn);
 
 // ---------------------------------------------------------------- interactions
-const swing = { t: -1, dur: 0.55, hit: false, onHit: null };
-function startSwing(onHit){ if(swing.t >= 0) return false; swing.dur = 0.55 / (1 + 0.2*selEnch('efficiency')); swing.t = 0; swing.hit = false; swing.onHit = onHit; return true; }
+const swing = { t: -1, dur: 0.55, hit: false, onHit: null, kind: 'chop', hitAt: 0.58 };
+function startSwing(onHit, o = {}){ if(swing.t >= 0) return false; swing.dur = (o.dur || 0.55) / (1 + 0.2*selEnch('efficiency')); swing.kind = o.kind || 'chop'; swing.hitAt = o.hitAt || 0.58; swing.t = 0; swing.hit = false; swing.onHit = onHit; return true; }
 function faceTo(x, z){ P.yaw = Math.atan2(x - P.pos.x, z - P.pos.z); }
 const d2 = (x, z) => Math.hypot(x - P.pos.x, z - P.pos.z);
 const swordReach = () => isSword(selKey()) ? 0.5 * (custom.len[selKey()] || 0) : 0; // longer blades (from Builder Bill) hit from farther away
@@ -4490,7 +4599,8 @@ function useItem(){ // left click
   const k = selKey();
   if(fishing.state !== 'none'){ reelIn(); return; }
   if(k === 'rod'){ castLine(); return; }
-  if(isSword(k) || (target && target.type === 'animal') || ATTACKABLE.some(f => f().some(a => inFront(a.x, a.z, 2.6 + swordReach()) && Math.abs((a.y ?? 0) - P.pos.y) < 2.2))){ attack(); return; }
+  if(isSword(k)){ fight.clickLeft = !fight.clickLeft; swordMove(fight.clickLeft ? 'left' : 'right'); return; } // a click is a swipe, left then right
+  if((target && target.type === 'animal') || ATTACKABLE.some(f => f().some(a => inFront(a.x, a.z, 2.6 + swordReach()) && Math.abs((a.y ?? 0) - P.pos.y) < 2.2))){ attack(); return; }
   tryMine();
 }
 function attack(){
@@ -4673,18 +4783,20 @@ function updatePlayer(dt){
   if(P.lock) return;
   let f = 0, r = 0;
   if(!S.dead && !S.invOpen && !S.menu && !isFrozen()){
-    if(keys.KeyW || keys.ArrowUp) f += 1; if(keys.KeyS || keys.ArrowDown) f -= 1;
-    if(keys.KeyD || keys.ArrowRight) r += 1; if(keys.KeyA || keys.ArrowLeft) r -= 1;
+    const arrows = !isSword(selKey()); // holding a sword, the arrow keys are your sword moves — walk with W A S D
+    if(keys.KeyW || (arrows && keys.ArrowUp)) f += 1; if(keys.KeyS || (arrows && keys.ArrowDown)) f -= 1;
+    if(keys.KeyD || (arrows && keys.ArrowRight)) r += 1; if(keys.KeyA || (arrows && keys.ArrowLeft)) r -= 1;
   }
   const fwd = V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), right = V3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
   const mv = fwd.multiplyScalar(f).add(right.multiplyScalar(r));
   if(mv.lengthSq() > 0) mv.normalize();
   P.crouch = !!keys.ShiftRight && !P.swimming && !S.dead && !S.menu;
-  P.block = P.crouch && has('shield'); // Right Shift raises your shield (you still won't step off edges)
+  P.block = P.crouch && has('shield') && !(fight.twoHand && isSword(selKey())); // Right Shift raises your shield (you still won't step off edges)
   const speed = (P.swimming ? 2.6 : plow.riding ? (plow.superP ? 10.5 : 3.2) : P.crouch ? 2.0 : (keys.ShiftLeft ? 7.4 : 4.6)) * (fxOn('speed') ? 1.5 : 1);
   const k = 1 - Math.exp(-dt * (P.grounded || P.swimming ? 12 : 3));
   P.vel.x += (mv.x * speed - P.vel.x) * k; P.vel.z += (mv.z * speed - P.vel.z) * k;
   if(mv.lengthSq() > 0 && swing.t < 0) P.yaw = lerpAngle(P.yaw, Math.atan2(mv.x, mv.z), 1 - Math.exp(-dt * 12));
+  if(fight.fp) P.yaw = cam.yaw + Math.PI; // in first person you always face where you're looking
   if(P.flipT >= 0){ P.flipT += dt / 0.6; if(P.flipT >= 1) P.flipT = -1; }
 
   let nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
@@ -4835,6 +4947,15 @@ function updateFlags(){
 }
 const _camT = V3(), _camP = V3(), _camD = V3(), camRay = new THREE.Raycaster();
 function updateCamera(dt, instant = false){
+  const fp = fight.fp && S.playing && !S.dead; player.parts.head.visible = !fp;
+  if(fp){ // first person: the camera sits where your eyes are
+    const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), cp = Math.cos(cam.pitch);
+    cam.target.set(P.pos.x, P.pos.y + (P.crouch && !P.block ? 1.25 : plow.riding ? 1.2 : 1.66), P.pos.z);
+    camera.position.set(cam.target.x + fx*0.16, cam.target.y, cam.target.z + fz*0.16);
+    _camT.set(camera.position.x + fx*cp, camera.position.y - Math.sin(cam.pitch), camera.position.z + fz*cp); camera.lookAt(_camT);
+    sky.position.copy(camera.position); sun.position.copy(cam.target).addScaledVector(lightDir, 70); sun.target.position.copy(cam.target);
+    return;
+  }
   cam.dist += (cam.tDist - cam.dist) * (1 - Math.exp(-dt*8));
   _camT.copy(P.pos); _camT.y = Math.max(_camT.y, inHub() ? -60 : -8) + (P.crouch ? 1.2 : 1.55);
   if(instant) cam.target.copy(_camT); else cam.target.lerp(_camT, 1 - Math.exp(-dt*10));
@@ -4956,11 +5077,11 @@ function frame(){
     if(!S.dead) updatePlayer(dt);
     target = S.dead ? null : findTarget();
     if(mouseHeld && !S.dead && !S.menu) tryMine();
-    if(swing.t >= 0){ swing.t += dt / swing.dur; if(!swing.hit && swing.t >= 0.58){ swing.hit = true; swing.onHit && swing.onHit(); } if(swing.t >= 1) swing.t = -1; }
+    if(swing.t >= 0){ swing.t += dt / swing.dur; if(!swing.hit && swing.t >= swing.hitAt){ swing.hit = true; swing.onHit && swing.onHit(); } if(swing.t >= 1) swing.t = -1; }
     if(!S.dead && !S.invOpen && !S.menu) updateStats(dt);
     updateFlags(); checkObjectives();
   }
-  animateHuman(player, { speed: P.speed, grounded: P.grounded, swimming: P.swimming, swing: swing.t, holding: !!S.equipped || handBlock.visible, sword: isSword(selKey()) && swing.t < 0, crouch: P.crouch && !P.block, block: P.block, sit: plow.riding, flip: P.flipT ?? -1, fishing: fishing.state !== 'none' }, dt);
+  animateHuman(player, { speed: P.speed, grounded: P.grounded, swimming: P.swimming, swing: swing.t, kind: swing.kind, hitAt: swing.hitAt, two: fight.twoHand && isSword(selKey()), fp: fight.fp && S.playing, holding: !!S.equipped || handBlock.visible, sword: isSword(selKey()) && swing.t < 0, crouch: P.crouch && !P.block, block: P.block, sit: plow.riding, flip: P.flipT ?? -1, fishing: fishing.state !== 'none' }, dt);
   if(active) for(const f of UPDATERS) f(dt, now);
   updateTrees(dt, now); updateNPCs(dt); updateWorkers(dt); updateHub(dt, now); updateAnimals(dt); updateNPCCombat(dt); updateFishing(dt); updateGhost(); regrowGrass(); regrowHumps(); growMainland(dt); updateMisc(dt, now);
   updateClouds(dt); updateParticles(dt); updatePopups(dt); updateSkyCycle(dt);
