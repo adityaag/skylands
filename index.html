@@ -194,6 +194,8 @@
   .mbtn.warn { background: linear-gradient(180deg, #ffc9cf, #ff7b88); box-shadow: 0 3px 0 #b23a48; }
   .mbtn:active { transform: translateY(2px); box-shadow: none; }
   .mbtn:disabled { opacity: 0.4; cursor: default; }
+  .cswatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .mbtn.cswatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,0.75); box-shadow: 0 2px 0 rgba(0,0,0,0.35); }
   .mbtn:focus-visible, .x:focus-visible, .amount input:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   .amount { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0 0; }
   .amount input { font: 800 18px var(--body); width: 160px; max-width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--edge); background: rgba(255,255,255,0.08); color: var(--ink); }
@@ -271,7 +273,8 @@
       <div><kbd>M</kbd> Get $100</div>
       <div><kbd>Q</kbd> Pick up worker</div>
       <div><kbd>L Shift</kbd> Run</div>
-      <div><kbd>R Shift</kbd> Crouch (no falling off)</div>
+      <div><kbd>R Shift</kbd> Crouch / block with shield</div>
+      <div><kbd>T</kbd> Throw your throwing axe</div>
       <div><kbd>Tab</kbd> Inventory &amp; skills</div>
       <div><kbd>Scroll</kbd> Zoom camera</div>
     </div>
@@ -504,7 +507,8 @@ const CONCRETE = [['white','White','#e9ecec'],['light_gray','Light Gray','#a0a09
 function tintIcon(src, hex){ const c = makeCanvas(128), g = c.getContext('2d'); g.drawImage(src, 0, 0, 128, 128); g.globalCompositeOperation = 'multiply'; g.fillStyle = hex; g.fillRect(0, 0, 128, 128); return iconFrom(c); }
 Object.assign(ICON, { wool: iconFrom(C.wool), rainbow: iconFrom(C.rainbow), crystal: iconFrom(C.crystal), concrete: tintIcon(C.concrete, '#3fb2da') });
 for(const [k,,hex] of CONCRETE) ICON['c_' + k] = tintIcon(C.concrete, hex);
-const workerSVG = kind => { const hat = { stone: '#ffa21a', wood: '#8a1e1e', wheat: '#e8c25a' }[kind], body = { stone: '#3d6fb0', wood: '#b3241e', wheat: '#6a8ac0' }[kind]; return `<svg viewBox="0 0 48 48"><rect x="12" y="27" width="24" height="18" rx="4" fill="${body}"/><rect x="11" y="8" width="26" height="21" rx="5" fill="#f1c39b"/><rect x="9" y="4" width="30" height="8" rx="3" fill="${hat}"/><rect x="17" y="15" width="4" height="5" rx="1" fill="#1a1a1a"/><rect x="27" y="15" width="4" height="5" rx="1" fill="#1a1a1a"/><rect x="21" y="23" width="6" height="2" rx="1" fill="#7a2b2b"/></svg>`; };
+const workerSVG = kind => { const body = { stone: '#9a9a9a', wood: '#d9a86a', wheat: '#e8c04a' }[kind], hat = { stone: '#f2b51e', wood: '#c0201e', wheat: '#e0b450' }[kind];
+  return `<svg viewBox="0 0 48 48"><rect x="12" y="38" width="9" height="7" rx="2" fill="#5a3420"/><rect x="27" y="38" width="9" height="7" rx="2" fill="#5a3420"/><rect x="9" y="12" width="30" height="28" rx="5" fill="${body}"/>${kind === 'wheat' ? `<ellipse cx="24" cy="12" rx="20" ry="4" fill="${hat}"/><rect x="15" y="4" width="18" height="8" rx="3" fill="${hat}"/><rect x="15" y="9" width="18" height="3" fill="#2f4f9a"/>` : `<rect x="8" y="5" width="32" height="9" rx="4" fill="${hat}"/>`}${kind === 'stone' ? '<circle cx="24" cy="9" r="3" fill="#fff2b0"/>' : ''}${kind === 'wood' ? '<rect x="7" y="12" width="34" height="3" rx="1.5" fill="#c8b090"/>' : ''}<ellipse cx="18" cy="22" rx="3" ry="3.6" fill="#141414"/><ellipse cx="30" cy="22" rx="3" ry="3.6" fill="#141414"/><circle cx="19" cy="20.5" r="1.1" fill="#fff"/><circle cx="31" cy="20.5" r="1.1" fill="#fff"/><path d="M19 28 Q24 29 29 28 Q28.5 34 24 34 Q19.5 34 19 28Z" fill="#5a1414"/><ellipse cx="24" cy="32" rx="3" ry="1.6" fill="#ff5f7a"/></svg>`; };
 
 // ---------------------------------------------------------------- renderer / scene
 const canvas = document.getElementById('game');
@@ -596,7 +600,7 @@ const BLOCK_MAT = {
 };
 const ITEMS = {
   stone:  { name: 'Cobblestone', icon: ICON.cobble, buy: 4, sell: 2, mat: BLOCK_MAT.stone, color: 0x8b8e91 },
-  wood:   { name: 'Wood', icon: ICON.wood, buy: 6, sell: 3, mat: BLOCK_MAT.wood, color: 0x7a5230 },
+  wood:   { name: 'Oak Wood', icon: ICON.wood, buy: 6, sell: 3, mat: BLOCK_MAT.wood, color: 0x7a5230 },
   leaves: { name: 'Leaves', icon: ICON.leaves, buy: 2, sell: 1, mat: BLOCK_MAT.leaves, color: 0x3d7a2a },
   grass:  { name: 'Grass Block', icon: ICON.grass, buy: 3, sell: 1, mat: BLOCK_MAT.dirt, color: 0x5b9a3a },
   dirt:   { name: 'Dirt', icon: ICON.dirt, buy: 2, sell: 1, mat: BLOCK_MAT.dirt, color: 0x6b4a2f },
@@ -628,11 +632,14 @@ Object.assign(ITEMS, {
   bush:   { name: 'Bush', icon: ICON.bush, block: true, sell: 1, mat: MAT_BUSH, color: 0x3f8a32 },
   chest:  { name: 'Chest', icon: ICON.chest, block: true, sell: 10, mat: MAT.plank, color: 0x8c5b31 },
   axe:    { name: 'Iron Axe', svg: SVG_AXE, tool: true, buy: 80 },
+  throw_axe: { name: 'Throwing Axe', svg: `<svg viewBox="0 0 48 48"><path d="M12 40 L32 12" stroke="#7a1f1f" stroke-width="5" stroke-linecap="round"/><path d="M26 8 C34 4 43 8 44 18 C38 15 33 17 30 21 Z" fill="#9fb4c8" stroke="#4d5a66" stroke-width="2" stroke-linejoin="round"/><path d="M6 30 l5 -2 M4 36 l6 -2 M8 44 l5 -3" stroke="#cfd8e0" stroke-width="2" stroke-linecap="round"/></svg>`, tool: true, buy: 220 },
   pick:   { name: 'Iron Pickaxe', svg: SVG_PICK, tool: true, buy: 100 },
   sword:  { name: 'Iron Sword', svg: SVG_SWORD, tool: true, buy: 120 },
   warrior_sword: { name: 'Warrior Sword', svg: SVG_SWORD.replace('#dfe4e8', '#d42a2a').replace('#aab2b9', '#ff7a6a').replace('#6b737a', '#7a1a1a').replace('#8e959c', '#9a3a2a').replace('#5a3a22', '#7a2a1e').replace('#d9a83a', '#9a3a2a'), tool: true },
   legend_sword:  { name: 'Legendary Sword', svg: SVG_SWORD.replace('#dfe4e8', '#ffd84a').replace('#aab2b9', '#fff6c8').replace('#6b737a', '#c89a10').replace('#8e959c', '#2a5ad8').replace('#5a3a22', '#1e3a9a').replace('#d9a83a', '#2a5ad8'), tool: true },
   rod:    { name: 'Fishing Rod', svg: SVG_ROD, tool: true, buy: 60 },
+  shield: { name: 'Shield', svg: `<svg viewBox="0 0 48 48"><path d="M24 4 L41 10 V24 C41 34 33 41 24 45 C15 41 7 34 7 24 V10 Z" fill="#8a5a33" stroke="#5d646b" stroke-width="3"/><path d="M24 9 V40 M11 20 H37" stroke="#c6ccd2" stroke-width="3"/><circle cx="24" cy="20" r="4" fill="#d9a83a"/></svg>`, tool: true, buy: 150 },
+  sheath: { name: 'Sword Sheath', svg: `<svg viewBox="0 0 48 48"><path d="M30 6 L38 14 L16 42 L10 40 L8 34 Z" fill="#6a4426" stroke="#3a2412" stroke-width="2"/><path d="M27 9 L35 17" stroke="#d9a83a" stroke-width="3"/><path d="M12 36 L16 40" stroke="#d9a83a" stroke-width="3"/><path d="M32 4 L40 12" stroke="#8e959c" stroke-width="4" stroke-linecap="round"/></svg>`, tool: true, buy: 90 },
   fish:        { name: 'Fish', icon: ICON.fish, food: 20, sell: 6 },
   golden_fish: { name: 'Golden Fish', icon: ICON.golden_fish, food: 50, sell: 40 },
   beef:   { name: 'Steak', icon: ICON.beef, food: 40, buy: 12, sell: 5 },
@@ -646,6 +653,20 @@ Object.assign(ITEMS, {
 const ITEM_ORDER = Object.keys(ITEMS);
 const WOOL_COLORS = [0xe53935, 0xfb8c00, 0xfdd835, 0x43a047, 0x1e88e5, 0x3949ab, 0x8e24aa, 0xec407a];
 const WOOL_MATS = WOOL_COLORS.map(c => texMat(C.wool, { color: c, roughness: 1 }));
+const WOOL_NAMES = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Purple', 'Pink'];
+const WOOL_KEYS = WOOL_NAMES.map(n => 'wool_' + n.toLowerCase());
+WOOL_NAMES.forEach((n, i) => { ITEMS[WOOL_KEYS[i]] = { name: n + ' Wool', icon: tintIcon(C.wool, '#' + WOOL_COLORS[i].toString(16).padStart(6, '0')), block: true, buy: 5, sell: 2, mat: WOOL_MATS[i], color: WOOL_COLORS[i] }; });
+{ const c = makeCanvas(128), g = c.getContext('2d'); // rainbow wool: diagonal stripes of every wool colour
+  g.save(); g.translate(64, 64); g.rotate(-Math.PI/4); WOOL_COLORS.forEach((col, i) => { g.fillStyle = '#' + col.toString(16).padStart(6, '0'); g.fillRect(-100, -92 + i*23, 200, 24); }); g.restore();
+  g.globalCompositeOperation = 'multiply'; g.drawImage(C.wool, 0, 0, 128, 128); g.globalCompositeOperation = 'source-over'; C.rainbowWool = c;
+  ITEMS.wool_rainbow = { name: 'Rainbow Wool', icon: iconFrom(c), block: true, buy: 20, sell: 8, mat: texMat(c, { roughness: 1 }), color: 0xff66cc }; WOOL_KEYS.push('wool_rainbow'); }
+// skill blocks: put one down and hit it to learn how to get better at that skill
+const SKILL_BLOCKS = [['foraging', 'Foraging', '#3d8a3a', 'F'], ['mining', 'Mining', '#7a7f86', 'M'], ['fishing', 'Fishing', '#2f7fd0', 'Fi'], ['enchanting', 'Enchanting', '#8a3fd6', 'E'], ['farming', 'Farming', '#d9a520', 'Fa'], ['combat', 'Combat', '#c0392b', 'C']];
+for(const [id, name, col, letter] of SKILL_BLOCKS){ const c = makeCanvas(128), g = c.getContext('2d');
+  g.fillStyle = col; g.fillRect(0, 0, 128, 128); g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(0, 0, 128, 128); g.fillStyle = col; g.fillRect(10, 10, 108, 108);
+  g.strokeStyle = '#ffe28a'; g.lineWidth = 5; g.strokeRect(10, 10, 108, 108);
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 58px sans-serif'; g.fillText(letter, 64, 56); g.font = '900 17px sans-serif'; g.fillStyle = '#ffe28a'; g.fillText(name.toUpperCase(), 64, 100, 100);
+  ITEMS['skill_' + id] = { name: name + ' Skill Block', icon: c.toDataURL(), block: true, buy: 10, sell: 5, skill: id, mat: new THREE.MeshStandardMaterial({ map: tex(c, 1), roughness: 0.5, emissive: new THREE.Color(col), emissiveIntensity: 0.25 }), color: new THREE.Color(col).getHex() }; }
 
 
 // ---------------------------------------------------------------- world bookkeeping
@@ -850,6 +871,8 @@ const TREE_KINDS = {
   birch:  { bark: new THREE.MeshStandardMaterial({ map: BIRCH_TEX, roughness: 0.85 }), leaves: texMat(C.leaves, { color: 0xc8f08a }), wood: 'birch_wood' },
   spruce: { bark: texMat(C.bark, { color: 0x6a4a34, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.leaves, { color: 0x4a7a5a }), wood: 'spruce_wood' },
   acacia: { bark: texMat(C.bark, { color: 0xb08a70, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.leaves, { color: 0xa8c060 }), wood: 'acacia_wood' },
+  maple:  { bark: texMat(C.bark, { color: 0x9a6a4a, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.wool, { color: 0xf0661e, roughness: 0.9 }), wood: 'maple_wood' },
+  willow: { bark: texMat(C.bark, { color: 0x8a8068, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.wool, { color: 0x9ccc4a, roughness: 0.9 }), wood: 'willow_wood' },
   jungle: { bark: texMat(C.bark, { color: 0xa88a5a, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.leaves, { color: 0x6aa83a }), wood: 'jungle_wood' },
 };
 function blobGeo(r, x, y, z, sy = 0.88, detail = 3){ const g = ico(r, detail); const p = g.attributes.position; for(let i=0;i<p.count;i++){ const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), n = 1 + fbm(vx*1.4 + x*3, vy*1.4 + y, vz*1.4 + z*3)*0.3; p.setXYZ(i, vx*n + x, vy*n*sy + y, vz*n + z); } return g; }
@@ -868,6 +891,13 @@ function makeTreeModelType(type){
     add(trunkGeo(0.15, 0.26, 3.6, 0.9), K.bark);
     const br = add(trunkGeo(0.08, 0.12, 1.6), K.bark); br.position.set(0.35, 2.0, 0); br.rotation.z = 0.9;
     for(const [x, y, z, r] of [[0.9, 3.7, 0, 1.5], [-0.3, 3.55, 0.6, 1.1], [0.2, 3.6, -0.8, 1.15], [-0.95, 3.35, -0.2, 1.0]]) leafs.push(blobGeo(r, x, y, z, 0.32));
+  } else if(type === 'maple'){ // broad, round crown of orange-red leaves
+    add(trunkGeo(0.2, 0.34, 3.6), K.bark);
+    for(const [x, y, z, r] of [[0, 4.1, 0, 1.7], [1.2, 3.6, 0.3, 1.25], [-1.15, 3.7, -0.3, 1.3], [0.2, 5.0, -0.2, 1.2], [-0.3, 3.5, 1.15, 1.15], [0.4, 3.6, -1.2, 1.15]]) leafs.push(blobGeo(r, x, y, z, 0.9));
+  } else if(type === 'willow'){ // short thick trunk, wide crown, long drooping strands
+    add(trunkGeo(0.26, 0.42, 3.0, 0.3), K.bark);
+    for(const [x, y, z, r] of [[0.3, 3.6, 0, 1.6], [1.3, 3.3, 0.4, 1.1], [-0.9, 3.4, -0.4, 1.2], [0.2, 3.3, 1.2, 1.0], [0.4, 3.3, -1.2, 1.0]]) leafs.push(blobGeo(r, x, y, z, 0.6));
+    for(let i=0;i<26;i++){ const a = i/26*Math.PI*2 + R(-0.1, 0.1), r = R(1.5, 2.3), L = R(1.8, 2.9); const g = new THREE.BoxGeometry(0.16, L, 0.05); g.rotateY(-a); g.translate(0.3 + Math.cos(a)*r, 3.5 - L/2, Math.sin(a)*r); leafs.push(g); }
   } else if(type === 'jungle'){
     add(trunkGeo(0.32, 0.55, 6.6), K.bark);
     for(const [x, y, z, r] of [[0, 6.4, 0, 1.9], [1.2, 5.9, 0.5, 1.4], [-1.1, 6.0, -0.4, 1.5], [0.3, 7.2, -0.3, 1.3], [-0.4, 5.7, 1.1, 1.2], [0.6, 5.6, -1.2, 1.2]]) leafs.push(blobGeo(r, x, y, z, 0.8));
@@ -931,7 +961,7 @@ makeBush(-12, -44, 0.9); makeBush(-1, -57, 0.8); makeBush(21.5, -53.5, 0.7);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const signMats = [MAT.plank, MAT.plank, MAT.plank, MAT.plank, new THREE.MeshStandardMaterial({ map: t, roughness: 0.7 }), MAT.plank];
   const board = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.65, 0.08), signMats); board.position.set(-10, 1.25, 4.2); board.castShadow = true; scene.add(board);
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.2, 8), MAT.handle); post.position.set(-10, 0.6, 4.14); post.castShadow = true; scene.add(post);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.925, 8), MAT.handle); post.position.set(-10, 0.4625, 4.2); post.castShadow = true; scene.add(post);
   board.rotation.y = 0.35; post.rotation.y = 0.35;
   document.fonts?.ready.then(() => { g.drawImage(C.plank, 0, 0, 256, 128); g.fillStyle = 'rgba(40,20,5,0.9)'; g.font = '44px "Lilita One", sans-serif'; g.fillText('SKYLANDS', 128, 58); g.font = '800 17px Nunito, sans-serif'; g.fillText('mind the void', 128, 96); t.needsUpdate = true; });
   colliders.push({ x: -10, z: 4.2, r: 0.3, on: () => true });
@@ -948,12 +978,13 @@ function makeHump(def, i){
   const h = { x: def.x, z: def.z, s: def.s, count: 6, max: 6, mesh, shake: 0 };
   setHumpScale(h);
   scene.add(mesh);
-  colliders.push({ x: def.x, z: def.z, get r(){ return h.count > 0 ? h.s * (0.35 + 0.65*h.count/h.max) * 0.95 : 0; }, on: () => h.count > 0 });
+  walkables.push(mesh); // you can jump up and stand on top
+  colliders.push({ x: def.x, z: def.z, get r(){ return h.count > 0 ? h.s * (0.35 + 0.65*h.count/h.max) * 0.95 : 0; }, on: () => h.count > 0 && P.pos.y < mesh.scale.y*0.9 - 0.4 }); // only solid from the side — jump and you can get on top
   return h;
 }
 function setHumpScale(h){ const k = 0.35 + 0.65 * h.count / h.max; h.mesh.scale.set(h.s*k, h.s*0.62*k, h.s*k); }
 const humps = HUMPS_DEF.map(makeHump);
-function regrowHumps(){ const now = clock.elapsedTime; for(const h of humps){ if(h.count === 0 && h.regrowAt && now > h.regrowAt){ h.regrowAt = 0; h.count = h.max; h.mesh.visible = true; setHumpScale(h); burst(V3(h.x, 0.5, h.z), 0x9a9da0, 14, { up: 0.7 }); } } }
+function regrowHumps(){ const now = clock.elapsedTime; for(const h of humps){ if(h.count === 0 && h.regrowAt && now > h.regrowAt){ h.regrowAt = 0; h.count = h.max; h.mesh.visible = true; if(!walkables.includes(h.mesh)) walkables.push(h.mesh); setHumpScale(h); burst(V3(h.x, 0.5, h.z), 0x9a9da0, 14, { up: 0.7 }); } } }
 
 // ---------------------------------------------------------------- chest
 const chest = (() => {
@@ -1122,6 +1153,7 @@ function animateHuman(h, st, dt){
   }
   let spineX = 0;
   if(st.sit){ hipsY = 0.5; hipsX = 0; hpL = hpR = -1.5; knL = knR = 1.5; shL = shR = -0.55; elL = elR = -0.75; shLz = -0.1; shRz = 0.1; }
+  if(st.block){ shL = -1.25; elL = -1.0; shLz = 0.55; spineY = 0.25; } // shield up in front
   if(st.crouch && st.grounded && !st.swimming){
     hipsY -= 0.3; spineX = 0.4; hipsX = 0;
     hpL = -1.0 - s*0.35*amt; hpR = -1.0 + s*0.35*amt; knL = knR = 1.55; shL += -0.3; shR += -0.3;
@@ -1173,7 +1205,7 @@ function makeNPC(pos, opts, name, facing, extra = {}){
   const label = makeLabel(name, '#ffd166');
   label.position.set(0, extra.sit ? 1.85 : 2.25, 0); h.root.add(label);
   const alert = makeLabel('!', '#ffffff', 0.9, '#ff5d6c'); alert.position.set(0, 2.62, 0); alert.visible = false; h.root.add(alert);
-  const npc = { h, pos, name, facing, baseFacing: facing, sit: !!extra.sit, menu: extra.menu || null, st: { speed: 0, grounded: true, swing: -1, holding: extra.hammer !== false, lookYaw: 0, sit: !!extra.sit }, label, alert, building: false, hammerT: 0 };
+  const npc = { h, pos, name, facing, baseFacing: facing, sit: !!extra.sit, menu: extra.menu || null, line: extra.line || null, st: { speed: 0, grounded: true, swing: -1, holding: extra.hammer !== false, lookYaw: 0, sit: !!extra.sit }, label, alert, building: false, hammerT: 0 };
   colliders.push({ get x(){ return pos.x; }, get z(){ return pos.z; }, r: 0.45, on: () => !npc.dead });
   return npc;
 }
@@ -1231,13 +1263,13 @@ const portal = (() => {
   const bg = new RoundedBoxGeometry(1, 1, 1, 3, 0.1);
   for(let cx=0; cx<4; cx++) for(let cy=0; cy<5; cy++){
     if(!(cy === 0 || cy === 4 || cx === 0 || cx === 3)) continue;
-    const b = new THREE.Mesh(bg, MAT.pframe); b.position.set(cx - 1.5, cy - 0.5, 0); b.castShadow = b.receiveShadow = true; g.add(b);
+    const b = new THREE.Mesh(bg, MAT.pframe); b.position.set(cx - 1.5, cy - 0.5, 0); b.castShadow = b.receiveShadow = true; b.userData.part = 'frame'; g.add(b);
   }
   const mat = new THREE.ShaderMaterial({
     transparent: true, side: THREE.DoubleSide, depthWrite: false,
-    uniforms: { uTime: timeU },
+    uniforms: { uTime: timeU, uTint: { value: new THREE.Color(1, 1, 1) }, uMix: { value: 0 } },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform float uTime; varying vec2 vUv;
+    fragmentShader: `uniform float uTime; uniform vec3 uTint; uniform float uMix; varying vec2 vUv;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
       void main(){ vec2 p = vUv*2.0-1.0; p.x *= 0.72; float r = length(p); float a = atan(p.y, p.x);
@@ -1249,6 +1281,7 @@ const portal = (() => {
         vec3 c = mix(deep, mid, bands);
         c = mix(c, hot, pow(f, 3.0) * 0.9);
         c += hot * pow(max(0.0, 1.0 - r*1.4), 3.0) * 0.7;
+        float lum = dot(c, vec3(0.4, 0.4, 0.3)); c = mix(c, mix(uTint * 0.25, uTint, lum) + vec3(pow(lum, 3.0)) * 0.5, uMix);
         gl_FragColor = vec4(c * 1.5, 0.93); }`
   });
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 3), mat); plane.position.set(0, 1.5, 0); g.add(plane);
@@ -1261,7 +1294,7 @@ const portal = (() => {
   for(let i=0;i<22;i++){ const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.03, 0), moteM); m.userData = { a: R(0,6), r: R(0.3, 1.2), y: R(0.1,3), sp: R(0.5, 1.5) }; g.add(m); motes.push(m); }
   scene.add(g);
   colliders.push({ x: PORTAL.x - 1.5, z: PORTAL.z, r: 0.6, on: () => true }, { x: PORTAL.x + 1.5, z: PORTAL.z, r: 0.6, on: () => true });
-  return { group: g, motes, mat };
+  return { group: g, motes, mat, light, moteM };
 })();
 
 // ---------------------------------------------------------------- pool with fish
@@ -1329,77 +1362,87 @@ const workerName = w => `${WORKER_LEVEL[w.level - 1]} ${WORKER_KIND[w.kind].name
 const workerValue = w => WORKER_KIND[w.kind].price[0] + UPGRADE_COST.slice(1, w.level).reduce((a, b) => a + b, 0);
 const fmtTime = s => s >= 60 ? `${Math.floor(s/60)} min${s % 60 ? ` ${s % 60} sec` : ''}` : `${s} sec`;
 const workers = [];
-let workerSeq = 1;
+let workerSeq = 1, onWorkerSpawn = null;
 const STONE_BLOCK_GEO = new RoundedBoxGeometry(0.8, 0.8, 0.8, 3, 0.1);
-// every kind of worker has its own outfit, and every level adds its own colour, badge and gear
-const WORKER_LOOK = {
-  stone: { skin: 0xf1c39b, over: 0x3d6fb0, shirt: 0xd8d4c8, hat: 0xffa21a, boot: 0x3a2a1a },
-  wood:  { skin: 0xd9a57f, over: 0x2f4a2a, shirt: 0xc0392b, hat: 0x8a1e1e, boot: 0x4a3222 },
-  wheat: { skin: 0xe8b48e, over: 0x6a8ac0, shirt: 0xf2e6c8, hat: 0xe8c25a, boot: 0x5a3a22 },
-};
+// workers are living blocks of what they collect — a stone block, a wooden block, a block of wheat straw — with a big happy face
 const LEVEL_TRIM = [0xb07a3a, 0xc8d0d8, 0xffc830, 0x5ff0ff, 0xd040ff]; // bronze, silver, gold, diamond, ultra
+function blockTex(kind){
+  const c = makeCanvas(256), g = c.getContext('2d');
+  if(kind === 'stone'){ g.drawImage(C.stone, 0, 0, 256, 256); for(let i=0;i<900;i++){ const v = R(60, 200)|0; g.fillStyle = `rgba(${v},${v},${v},0.5)`; g.fillRect(R(0, 256), R(0, 256), R(1, 3), R(1, 3)); } }
+  else if(kind === 'wood'){ g.fillStyle = '#d9a86a'; g.fillRect(0, 0, 256, 256); for(let x=0;x<256;x+=32){ g.fillStyle = `rgba(${R(150, 200)|0},${R(100, 140)|0},${R(50, 80)|0},0.35)`; g.fillRect(x, 0, 32, 256); g.fillStyle = 'rgba(90,50,20,0.45)'; g.fillRect(x, 0, 2, 256); }
+    for(let i=0;i<60;i++){ const x = R(0, 256); g.strokeStyle = `rgba(110,64,26,${R(0.2, 0.45)})`; g.lineWidth = R(0.8, 2); g.beginPath(); for(let y=0;y<=256;y+=8){ const xx = x + Math.sin(y*0.05 + i)*3; y ? g.lineTo(xx, y) : g.moveTo(xx, y); } g.stroke(); } }
+  else { g.fillStyle = '#e8c04a'; g.fillRect(0, 0, 256, 256); for(let y=0;y<256;y+=21){ for(let x=(y/21 % 2)*24; x<256; x+=48){ g.fillStyle = `rgba(${R(230, 255)|0},${R(190, 215)|0},${R(70, 110)|0},0.9)`; g.fillRect(x + 1, y + 1, 46, 19); } g.fillStyle = 'rgba(150,100,20,0.5)'; g.fillRect(0, y, 256, 2); } for(let i=0;i<300;i++){ g.strokeStyle = 'rgba(170,120,30,0.35)'; g.lineWidth = 1; const x = R(0, 256), y = R(0, 256); g.beginPath(); g.moveTo(x, y); g.lineTo(x + R(4, 12), y + R(-1, 1)); g.stroke(); } }
+  pixNoise(g, 256, 10); return tex(c, 1);
+}
+function faceTex(blush){
+  const c = makeCanvas(256), g = c.getContext('2d');
+  for(const x of [72, 184]){ g.fillStyle = '#141414'; g.beginPath(); g.ellipse(x, 98, 30, 37, 0, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x + 10, 83, 11, 0, 7); g.fill(); g.beginPath(); g.arc(x - 11, 113, 5, 0, 7); g.fill(); }
+  if(blush){ g.fillStyle = 'rgba(255,110,110,0.45)'; for(const x of [36, 220]){ g.beginPath(); g.ellipse(x, 158, 20, 12, 0, 0, 7); g.fill(); } }
+  g.fillStyle = '#5a1414'; g.beginPath(); g.moveTo(88, 150); g.quadraticCurveTo(128, 152, 168, 150); g.quadraticCurveTo(166, 214, 128, 216); g.quadraticCurveTo(90, 214, 88, 150); g.fill();
+  g.fillStyle = '#ff5f7a'; g.beginPath(); g.ellipse(128, 196, 27, 16, 0, 0, 7); g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const WORKER_TEX = { stone: blockTex('stone'), wood: blockTex('wood'), wheat: blockTex('wheat') };
+const WORKER_FACE = faceTex(false), WORKER_FACE_BLUSH = faceTex(true);
+function plaidTex(){ const c = makeCanvas(128), g = c.getContext('2d'); g.fillStyle = '#c0201e'; g.fillRect(0, 0, 128, 128); g.fillStyle = 'rgba(15,8,8,0.6)'; for(let i=0;i<128;i+=32){ g.fillRect(i, 0, 14, 128); g.fillRect(0, i, 128, 14); } pixNoise(g, 128, 10); return tex(c, 1); }
+const PLAID = plaidTex();
 function buildWorkerModel(kind, level = 1){
-  const L = WORKER_LOOK[kind] || WORKER_LOOK.stone, trimHex = LEVEL_TRIM[clamp(level, 1, 5) - 1];
-  const root = new THREE.Group();
+  const trimHex = LEVEL_TRIM[clamp(level, 1, 5) - 1];
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const M = (c, r = 0.7, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...o });
-  const skin = M(L.skin, 0.6), over = M(L.over, 0.8), shirt = M(L.shirt), boot = M(L.boot), hat = M(L.hat, 0.35), black = M(0x1a1a1a, 0.3);
-  const trim = M(trimHex, 0.25, { metalness: 0.7, envMap: envTex, emissive: level >= 4 ? trimHex : 0x000000, emissiveIntensity: level >= 4 ? 0.6 : 0 });
-  const box = (w, h, d, mat, parent, x, y, z, r = 0.03) => { const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, r), mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
-  const body = new THREE.Group(); root.add(body);
+  const box = (w, h, d, mat, parent, x, y, z, r = 0.04) => { const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, r), mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
+  const blockMat = new THREE.MeshStandardMaterial({ map: WORKER_TEX[kind], roughness: kind === 'stone' ? 0.9 : 0.75, bumpMap: WORKER_TEX[kind], bumpScale: 2 });
+  const boot = M(0x5a3420, 0.75), leather = M(0x7a4a26, 0.7), trim = M(trimHex, 0.25, { metalness: 0.7, envMap: envTex, emissive: level >= 4 ? trimHex : 0x000000, emissiveIntensity: level >= 4 ? 0.5 : 0 });
+  // legs and chunky boots
   const legs = [];
-  for(const s of [-1, 1]){ const lg = new THREE.Group(); lg.position.set(s*0.1, 0.27, 0); body.add(lg); box(0.15, 0.22, 0.17, over, lg, 0, -0.1, 0); box(0.16, 0.08, 0.22, boot, lg, 0, -0.23, 0.02); legs.push(lg); }
-  if(kind === 'wood'){ // lumberjack: red plaid shirt under green dungarees
-    const pc = makeCanvas(64), g = pc.getContext('2d'); g.fillStyle = '#b3241e'; g.fillRect(0, 0, 64, 64); g.fillStyle = 'rgba(20,10,10,0.55)'; for(let i=0;i<64;i+=16){ g.fillRect(i, 0, 6, 64); g.fillRect(0, i, 64, 6); }
-    box(0.46, 0.42, 0.3, new THREE.MeshStandardMaterial({ map: tex(pc, 1), roughness: 0.9 }), body, 0, 0.5, 0, 0.05);
-    box(0.36, 0.26, 0.31, over, body, 0, 0.42, 0, 0.04);
-    for(const s of [-1, 1]) box(0.06, 0.2, 0.02, over, body, s*0.13, 0.62, 0.155, 0.01);
-  } else if(kind === 'wheat'){ // farmer: denim overalls with a bib pocket
-    box(0.46, 0.42, 0.3, shirt, body, 0, 0.5, 0, 0.05);
-    box(0.4, 0.3, 0.31, over, body, 0, 0.44, 0, 0.04);
-    box(0.18, 0.12, 0.02, over, body, 0, 0.62, 0.16, 0.01); box(0.1, 0.06, 0.01, M(0x4a6aa0), body, 0, 0.6, 0.172, 0.005);
-  } else { // miner: blue coveralls with reflective stripes
-    box(0.46, 0.42, 0.3, over, body, 0, 0.5, 0, 0.05);
-    box(0.3, 0.14, 0.02, shirt, body, 0, 0.64, 0.155, 0.01);
-    for(const y of [0.42, 0.52]) box(0.47, 0.025, 0.31, M(0xdfe6ea, 0.2, { metalness: 0.6, envMap: envTex }), body, 0, y, 0, 0.01);
+  const legMat = kind === 'wheat' ? M(0x3e6aa8, 0.85) : kind === 'wood' ? M(0x6a4a30, 0.8) : blockMat;
+  for(const s of [-1, 1]){ const lg = new THREE.Group(); lg.position.set(s*0.17, 0.4, 0); body.add(lg); box(0.2, 0.28, 0.2, legMat, lg, 0, -0.12, 0); box(0.26, 0.17, 0.3, boot, lg, 0, -0.32, 0.03, 0.03); box(0.27, 0.04, 0.31, M(0x3a2010), lg, 0, -0.24, 0.03, 0.01); legs.push(lg); }
+  // the big block body (head and torso in one) with the face on the front
+  box(0.78, 0.86, 0.6, blockMat, body, 0, 0.84, 0, 0.08);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.72), new THREE.MeshStandardMaterial({ map: kind === 'stone' ? WORKER_FACE : WORKER_FACE_BLUSH, transparent: true, roughness: 0.4 })); face.position.set(0, 0.98, 0.302); body.add(face);
+  // belt with the level-coloured buckle
+  box(0.8, 0.07, 0.62, leather, body, 0, 0.5, 0, 0.02); box(0.12, 0.09, 0.03, trim, body, 0, 0.5, 0.315, 0.015);
+  const head = new THREE.Group(); head.position.y = 1.27; body.add(head);
+  if(kind === 'stone'){
+    box(0.84, 0.16, 0.66, M(0xf2b51e, 0.35), head, 0, 0.06, 0, 0.06); // yellow hard hat
+    box(0.66, 0.2, 0.52, M(0xf2b51e, 0.35), head, 0, 0.2, -0.02, 0.09);
+    box(0.85, 0.05, 0.67, M(0x4a4a4a, 0.5), head, 0, 0.02, 0, 0.02); // dark band
+    const lampRim = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 16).rotateX(Math.PI/2), M(0x3a3a3a, 0.4, { metalness: 0.6 })); lampRim.position.set(0, 0.16, 0.3); head.add(lampRim);
+    const lamp = new THREE.Mesh(new THREE.CircleGeometry(0.085, 16), new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0xffd060, emissiveIntensity: 2.5 })); lamp.position.set(0, 0.16, 0.345); head.add(lamp);
+    box(0.24, 0.2, 0.08, leather, body, 0.28, 0.45, 0.32, 0.03); box(0.06, 0.05, 0.02, M(0xc0c0c0, 0.3, { metalness: 0.8 }), body, 0.28, 0.48, 0.365, 0.01); // tool pouch
+  } else if(kind === 'wood'){
+    const hat = M(0xffffff, 0.9, { map: PLAID }), fur = M(0xc8b090, 1);
+    box(0.8, 0.26, 0.62, hat, head, 0, 0.15, -0.01, 0.1); // plaid trapper hat
+    box(0.86, 0.12, 0.68, fur, head, 0, 0.02, 0, 0.06); // fur trim
+    for(const s of [-1, 1]) box(0.08, 0.32, 0.4, hat, head, s*0.42, -0.12, 0, 0.04); // ear flaps
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), fur); pom.position.set(0.32, 0.3, -0.2); head.add(pom);
+    box(0.82, 0.12, 0.64, hat, body, 0, 0.58, 0, 0.05); // plaid scarf
+    for(const s of [-1, 1]) box(0.07, 0.62, 0.02, leather, body, s*0.24, 0.82, 0.31, 0.01); // suspenders
+  } else {
+    const straw = M(0xffffff, 0.95, { map: tex(C.leaves, 1), color: 0xe8c060 });
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.66, 0.04, 28), M(0xe0b450, 0.95)); brim.position.y = 0.04; head.add(brim);
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.26, 20), M(0xe0b450, 0.95)); crown.position.y = 0.19; head.add(crown);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.345, 0.345, 0.07, 20), M(0x2f4f9a, 0.6)); band.position.y = 0.1; head.add(band);
+    box(0.62, 0.34, 0.03, M(0x3e6aa8, 0.85), body, 0, 0.62, 0.3, 0.02); // overall bib
+    for(const s of [-1, 1]){ box(0.08, 0.36, 0.02, M(0x3e6aa8, 0.85), body, s*0.24, 0.92, 0.305, 0.01); const btn = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), M(0xd4a020, 0.3, { metalness: 0.8 })); btn.position.set(s*0.24, 0.78, 0.32); body.add(btn); }
   }
-  // level belt + badge
-  box(0.47, 0.05, 0.31, trim, body, 0, 0.33, 0, 0.015);
-  const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 5 + level).rotateX(Math.PI/2), trim); badge.position.set(-0.12, 0.6, 0.165); body.add(badge);
-  const head = new THREE.Group(); head.position.y = 0.72; body.add(head);
-  box(0.5, 0.44, 0.44, skin, head, 0, 0.22, 0, 0.07);
-  for(const s of [-1, 1]){
-    box(0.07, 0.09, 0.02, black, head, s*0.11, 0.25, 0.225, 0.015);
-    box(0.022, 0.022, 0.01, M(0xffffff, 0.2), head, s*0.11 + 0.015, 0.27, 0.237, 0.005);
-    box(0.07, 0.035, 0.012, M(0xff9a9a, 0.6), head, s*0.17, 0.16, 0.225, 0.01);
-  }
-  box(0.1, 0.025, 0.012, M(0x7a2b2b), head, 0, 0.13, 0.225, 0.008);
-  if(kind === 'stone'){ // hard hat with a headlamp, and a little moustache
-    box(0.54, 0.13, 0.5, hat, head, 0, 0.47, 0, 0.04); box(0.56, 0.03, 0.2, hat, head, 0, 0.415, 0.28, 0.01);
-    box(0.12, 0.09, 0.05, M(0x2a2a2a), head, 0, 0.47, 0.26, 0.02); box(0.08, 0.06, 0.02, M(0xfff2b0, 0.2, { emissive: 0xffe080, emissiveIntensity: 2 }), head, 0, 0.47, 0.29, 0.01);
-    box(0.16, 0.03, 0.015, M(0x3a2a1a), head, 0, 0.165, 0.228, 0.01);
-    box(0.55, 0.035, 0.51, trim, head, 0, 0.415, 0, 0.01); // hat band shows the level
-  } else if(kind === 'wood'){ // knitted beanie with a pom-pom, big bushy beard
-    box(0.52, 0.16, 0.46, hat, head, 0, 0.47, 0, 0.06); box(0.53, 0.05, 0.47, trim, head, 0, 0.41, 0, 0.02);
-    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), M(0xf2f2f2, 1)); pom.position.set(0, 0.6, 0); head.add(pom);
-    box(0.42, 0.2, 0.08, M(0x6b4226, 0.95), head, 0, 0.06, 0.2, 0.04); box(0.2, 0.04, 0.03, M(0x6b4226, 0.95), head, 0, 0.165, 0.235, 0.015);
-  } else { // wide straw sun hat with a level-coloured ribbon, and a piece of straw
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.48, 0.03, 20), M(L.hat, 0.95)); brim.position.y = 0.43; head.add(brim);
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.17, 16), M(L.hat, 0.95)); crown.position.y = 0.52; head.add(crown);
-    const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.05, 16), trim); ribbon.position.y = 0.47; head.add(ribbon);
-    const straw = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.22, 4), M(0xe8c25a)); straw.position.set(0.09, 0.13, 0.27); straw.rotation.z = 1.1; head.add(straw);
-  }
-  // higher levels get extra flair: shoulder pads at Turbo, a glowing aura ring at Mega and Ultra
+  // arms: sleeve + chunky block hand made of the worker's own material
   const arms = [];
-  for(const s of [-1, 1]){ const a = new THREE.Group(); a.position.set(s*0.3, 0.66, 0); body.add(a); box(0.13, 0.3, 0.13, kind === 'wood' ? M(0xb3241e, 0.9) : kind === 'wheat' ? shirt : over, a, 0, -0.13, 0); box(0.12, 0.1, 0.12, kind === 'stone' ? M(0x8a6a3a, 0.8) : skin, a, 0, -0.32, 0); if(level >= 3) box(0.17, 0.07, 0.17, trim, a, 0, 0.02, 0, 0.02); arms.push(a); }
-  if(level >= 4){ const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.02, 8, 32), new THREE.MeshBasicMaterial({ color: trimHex, transparent: true, opacity: 0.75 })); ring.rotation.x = Math.PI/2; ring.position.y = 0.05; root.add(ring); root.userData.ring = ring; }
-  const tool = kind === 'stone' ? makePickaxe() : kind === 'wheat' ? makeHoe() : makeAxe(); tool.scale.setScalar(0.6); tool.position.set(0, -0.33, 0); tool.rotation.x = 0.3; arms[1].add(tool);
+  const sleeve = kind === 'wood' ? M(0xffffff, 0.9, { map: PLAID }) : kind === 'wheat' ? M(0xf2ece0, 0.9) : blockMat;
+  for(const s of [-1, 1]){ const a = new THREE.Group(); a.position.set(s*0.45, 0.98, 0); body.add(a); box(0.16, 0.24, 0.16, sleeve, a, 0, -0.1, 0); box(0.2, 0.2, 0.2, blockMat, a, 0, -0.3, 0, 0.04); box(0.21, 0.05, 0.21, leather, a, 0, -0.2, 0, 0.01); if(level >= 3) box(0.2, 0.06, 0.2, trim, a, 0, 0.04, 0, 0.02); arms.push(a); }
+  if(level >= 4){ const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.02, 8, 32), new THREE.MeshBasicMaterial({ color: trimHex, transparent: true, opacity: 0.75 })); ring.rotation.x = Math.PI/2; ring.position.y = 0.05; root.add(ring); }
+  const tool = kind === 'stone' ? makePickaxe() : kind === 'wheat' ? makeHoe() : makeAxe(); tool.scale.setScalar(0.75); tool.position.set(0, -0.3, 0); tool.rotation.x = 0.3; arms[1].add(tool);
+  // name the parts so Builder Bill can paint them
+  body.traverse(m => { if(!m.isMesh) return; let inHead = false, inTool = false; for(let q = m; q; q = q.parent){ if(q === head) inHead = true; if(q === tool) inTool = true; }
+    m.userData.wpart = inTool ? null : inHead ? 'hat' : m.material === blockMat ? 'body' : m.material === boot ? 'boots' : m.material === leather ? 'belt' : (m.material === sleeve || m.material === legMat) ? 'clothes' : null; });
+  root.scale.setScalar(0.85);
   return { root, body, head, arms, legs };
 }
 function spawnWorker({ kind, level = 1, stored = 0, x, z, y = 0, id }){
   const T = WORKER_KIND[kind], m = buildWorkerModel(kind, level);
   if(id === undefined) id = workerSeq++; else workerSeq = Math.max(workerSeq, id + 1);
   const W = { id, kind, level, count: stored, x, z, y, t: R(0, 3), target: 0, prevPhase: 0, objs: [m.root], active: true, stones: [], tree: null, treeT: -1, treeShake: 0, chops: Math.floor(stored / 12), lastDrawn: -1, ...m };
-  m.root.position.set(x, y, z); scene.add(m.root);
+  m.root.position.set(x, y, z); scene.add(m.root); if(onWorkerSpawn) onWorkerSpawn(W);
   if(kind === 'stone'){
     // 8 stone blocks: a plus around him + the 4 diagonals
     for(const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
@@ -1560,7 +1603,7 @@ function makeBuilding(o){
   const B = { ...o, x0, x1, z0, z1, group, roofGroup, inside: false };
   const sides = { n: { horiz: true, c: z0, a: x0, b: x1, n: [0, -1] }, s: { horiz: true, c: z1, a: x0, b: x1, n: [0, 1] }, w: { horiz: false, c: x0, a: z0, b: z1, n: [-1, 0] }, e: { horiz: false, c: x1, a: z0, b: z1, n: [1, 0] } };
   for(const [k, s] of Object.entries(sides)){
-    const seg = (a, b, y0 = 0, y1 = h) => s.horiz ? solidBox(wallMat, a, b, y0, y1, s.c - T/2, s.c + T/2, { parent: group }) : solidBox(wallMat, s.c - T/2, s.c + T/2, y0, y1, a, b, { parent: group });
+    const seg = (a, b, y0 = 0, y1 = h) => { const m = s.horiz ? solidBox(wallMat, a, b, y0, y1, s.c - T/2, s.c + T/2, { parent: group }) : solidBox(wallMat, s.c - T/2, s.c + T/2, y0, y1, a, b, { parent: group }); m.userData.part = 'wall'; return m; };
     const ext = s.horiz ? T/2 : 0;
     if(k !== door){
       seg(s.a - ext, s.b + ext);
@@ -1574,7 +1617,7 @@ function makeBuilding(o){
     const pivot = new THREE.Group(); pivot.position.set(s.horiz ? mid - DW/2 : s.c, 0, s.horiz ? s.c : mid - DW/2); group.add(pivot);
     const u = s.horiz ? [1, 0] : [0, 1];
     const panel = new THREE.Mesh(new RoundedBoxGeometry(DW - 0.06, DH - 0.04, 0.1, 2, 0.03), MAT.doorWood);
-    panel.position.set(u[0]*DW/2, DH/2, u[1]*DW/2); if(!s.horiz) panel.rotation.y = Math.PI/2; panel.castShadow = true; pivot.add(panel);
+    panel.position.set(u[0]*DW/2, DH/2, u[1]*DW/2); if(!s.horiz) panel.rotation.y = Math.PI/2; panel.castShadow = true; panel.userData.part = 'door'; pivot.add(panel);
     for(const side of [-1, 1]){ const knob = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), MAT.gold); knob.position.set(DW/2 - 0.22, 0, side*0.08); panel.add(knob); }
     const inward = [-s.n[0], -s.n[1]];
     const sign = (u[1]*inward[0] - u[0]*inward[1]) > 0 ? 1 : -1;
@@ -1588,7 +1631,7 @@ function makeBuilding(o){
   const floor = new THREE.Mesh(fg, o.floorMat || MAT.floorWood); floor.rotation.x = -Math.PI/2; floor.position.set(cx, 0.025, cz); floor.receiveShadow = true; group.add(floor); walkables.push(floor);
   // roof (hidden while you're inside so you can see)
   if(roof === 'flat'){
-    const r = new THREE.Mesh(worldBox(w + 0.6, 0.4, d + 0.6, 2), roofMat); r.position.set(cx, h + 0.2, cz); r.castShadow = r.receiveShadow = true; roofGroup.add(r);
+    const r = new THREE.Mesh(worldBox(w + 0.6, 0.4, d + 0.6, 2), roofMat); r.position.set(cx, h + 0.2, cz); r.castShadow = r.receiveShadow = true; r.userData.part = 'roof'; roofGroup.add(r);
     if(walkRoof) walkables.push(r);
     B.roofTop = h + 0.4;
   } else {
@@ -1596,9 +1639,9 @@ function makeBuilding(o){
     const sh = new THREE.Shape([new THREE.Vector2(-span/2, 0), new THREE.Vector2(span/2, 0), new THREE.Vector2(0, rise)]);
     const g = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); g.translate(0, 0, -len/2);
     { const uv = g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i, uv.getX(i)*0.5, uv.getY(i)*0.5); }
-    const r = new THREE.Mesh(g, roofMat); r.position.set(cx, h, cz); if(!alongZ) r.rotation.y = Math.PI/2; r.castShadow = r.receiveShadow = true; roofGroup.add(r);
+    const r = new THREE.Mesh(g, roofMat); r.position.set(cx, h, cz); if(!alongZ) r.rotation.y = Math.PI/2; r.castShadow = r.receiveShadow = true; r.userData.part = 'roof'; roofGroup.add(r);
   }
-  for(const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) deco(worldBox(0.5, h + 0.1, 0.5, 1), trimMat, px, (h + 0.1)/2, pz, 0, group);
+  for(const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) deco(worldBox(0.5, h + 0.1, 0.5, 1), trimMat, px, (h + 0.1)/2, pz, 0, group).userData.part = 'trim';
   if(o.light !== false){ const L = new THREE.PointLight(0xffe2b8, o.lightPower || 16, Math.max(w, d) * 1.5, 1.3); L.position.set(cx, h - 0.6, cz); group.add(L); }
   buildings.push(B);
   return B;
@@ -1608,6 +1651,7 @@ function makeBuilding(o){
 const BLOCK_GEO = new RoundedBoxGeometry(1, 1, 1, 2, 0.05);
 const GRASS_CAP_GEO = new RoundedBoxGeometry(1.02, 0.16, 1.02, 2, 0.05);
 const placed = [];
+const BS = 0.8; // how big a placed block is (a little under a metre, so building is easier)
 const BUSH_BLOCK_GEO = (() => { const gs = []; for(let i=0;i<5;i++){ const g = ico(R(0.3, 0.42), 2); const gp = g.attributes.position; const ox = R(-0.18, 0.18), oz = R(-0.18, 0.18), oy = R(-0.12, 0.12); for(let k=0;k<gp.count;k++){ const vx = gp.getX(k), vy = gp.getY(k), vz = gp.getZ(k); const n = 1 + fbm(vx*3 + i, vy*3, vz*3)*0.3; gp.setXYZ(k, vx*n + ox, vy*n*0.9 + oy, vz*n + oz); } gs.push(g); } const g = mergeGeometries(gs); g.computeVertexNormals(); return g; })();
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // placed wood blocks look like real logs: that tree's bark on the sides, growth rings on top and bottom
@@ -1622,6 +1666,8 @@ const LOG_LOOK = {
   birch_wood:  [logBarkTex('#f0ece2', '', true), logEndTex('#f0dcb0', '#c8a878', '#e8e4d8')],
   spruce_wood: [logBarkTex('#3a2416', 'rgba(0,0,0,0.6)'), logEndTex('#b88a5a', '#7a5230', '#2a1a10')],
   acacia_wood: [logBarkTex('#7c7468', 'rgba(40,36,30,0.6)'), logEndTex('#e8783a', '#b8501e', '#6a645a')],
+  maple_wood:  [logBarkTex('#7a4a2e', 'rgba(40,20,8,0.6)'), logEndTex('#f0b070', '#c8742a', '#6a3e24')],
+  willow_wood: [logBarkTex('#8a8068', 'rgba(50,46,34,0.6)'), logEndTex('#e8e0b0', '#b0a870', '#76705a')],
   jungle_wood: [logBarkTex('#8a6a3c', 'rgba(60,110,30,0.75)'), logEndTex('#d8a870', '#a07040', '#7a5c32')],
 };
 const LOG_GEO = new THREE.BoxGeometry(1, 1, 1);
@@ -1644,9 +1690,9 @@ function blockMesh(key){
   const m = new THREE.Mesh(BLOCK_GEO, ITEMS[key].mat); m.castShadow = m.receiveShadow = true; return { obj: m, hit: m };
 }
 function placeBlockAt(key, x, y, z){
-  const { obj, hit } = blockMesh(key); obj.position.set(x, y + 0.5, z); scene.add(obj); walkables.push(hit);
-  const b = { x0: x - 0.5, x1: x + 0.5, z0: z - 0.5, z1: z + 0.5, y0: y, y1: y + 1 }; boxes.push(b);
-  const P_ = { key, x, y, z, obj, hit, b, pop: 0 }; obj.scale.setScalar(0.6); placed.push(P_); return P_;
+  const { obj, hit } = blockMesh(key); obj.position.set(x, y + BS/2, z); scene.add(obj); walkables.push(hit);
+  const b = { x0: x - BS/2, x1: x + BS/2, z0: z - BS/2, z1: z + BS/2, y0: y, y1: y + BS }; boxes.push(b);
+  const P_ = { key, x, y, z, obj, hit, b, pop: 0 }; obj.scale.setScalar(0.6*BS); placed.push(P_); return P_;
 }
 function removeBlock(B){ scene.remove(B.obj); walkables.splice(walkables.indexOf(B.hit), 1); boxes.splice(boxes.indexOf(B.b), 1); placed.splice(placed.indexOf(B), 1); }
 
@@ -1818,21 +1864,47 @@ function updateBobLocation(){ // Bob pops over to the Hub whenever you're there
 // ---------------------------------------------------------------- your house on Starter Island (Bob builds it)
 const HOUSE = { cx: 1.4, cz: -7.4, w: 3.6, d: 3.2, h: 2.8 }; // on a little expansion in the inside corner of the L
 const EXPANSION_POLY = roundPoly([{ x: -2.8, z: -3.2 }, { x: 4.8, z: -3.2 }, { x: 4.8, z: -10.4 }, { x: -2.8, z: -10.4 }], 1.4);
-let expansion = null;
-function buildExpansion(){
-  expansion = makeIsland({ poly: EXPANSION_POLY, name: 'Starter Island', depth: 0.7, grassDensity: 12 });
-  // the island's outline now includes the expansion (for walking, fences, digging…)
-  island1.poly = roundPoly([{ x: -12, z: 6 }, { x: 18, z: 6 }, { x: 18, z: -4 }, { x: 4.8, z: -4 }, { x: 4.8, z: -10.4 }, { x: -2, z: -10.4 }, { x: -2, z: -22 }, { x: -12, z: -22 }], i => (i === 3 || i === 5) ? 1.0 : 2.8);
+const HOUSE2 = { cx: 9, cz: -8.4, w: 6.4, d: 5.6, h: 3.3 };       // the normal-sized house, next door to the cottage
+const MANSION = { cx: 6, cz: -18.2, w: 13, d: 9.6, h: 7.2 };       // two storeys, behind them both
+// Bob adds more land as the houses get bigger: 1 = cottage lot, 2 = + house lot, 3 = + mansion grounds
+const LAND_PATCH = [null, EXPANSION_POLY,
+  roundPoly([{ x: 4, z: -3.2 }, { x: 14, z: -3.2 }, { x: 14, z: -12.5 }, { x: -2.8, z: -12.5 }, { x: -2.8, z: -9.6 }, { x: 4, z: -9.6 }], 1.0),
+  roundPoly([{ x: -3.2, z: -11.7 }, { x: 14, z: -11.7 }, { x: 14, z: -24.6 }, { x: -3.2, z: -24.6 }], 1.4)];
+const LAND_OUTLINE = [null,
+  () => roundPoly([{ x: -12, z: 6 }, { x: 18, z: 6 }, { x: 18, z: -4 }, { x: 4.8, z: -4 }, { x: 4.8, z: -10.4 }, { x: -2, z: -10.4 }, { x: -2, z: -22 }, { x: -12, z: -22 }], i => (i === 3 || i === 5) ? 1.0 : 2.8),
+  () => roundPoly([{ x: -12, z: 6 }, { x: 18, z: 6 }, { x: 18, z: -4 }, { x: 14, z: -4 }, { x: 14, z: -12.5 }, { x: -2, z: -12.5 }, { x: -2, z: -22 }, { x: -12, z: -22 }], i => (i === 3 || i === 5) ? 1.0 : i === 4 ? 1.4 : 2.8),
+  () => roundPoly([{ x: -12, z: 6 }, { x: 18, z: 6 }, { x: 18, z: -4 }, { x: 14, z: -4 }, { x: 14, z: -24.6 }, { x: -3, z: -24.6 }, { x: -3, z: -22 }, { x: -12, z: -22 }], i => (i === 3 || i === 6) ? 1.0 : (i === 4 || i === 5) ? 1.4 : 2.8)];
+let expansion = null, landLevel = 0; const landPatches = [];
+function growLand(level){
+  if(level <= landLevel) return;
+  for(let l = landLevel + 1; l <= level; l++){
+    const patch = makeIsland({ poly: LAND_PATCH[l], name: 'Starter Island', depth: 0.7, grassDensity: 12 }); landPatches.push(patch); if(l === 1) expansion = patch;
+    for(let i=0;i<14;i++){ const q = LAND_PATCH[l][Math.floor(R(0, LAND_PATCH[l].length))]; burst(V3(q.x, 0.2, q.z), pick([0x5b9a3a, 0x6b4a2f]), 6, { up: 0.9 }); }
+  }
+  landLevel = level; clearHomeGrass();
+  island1.poly = LAND_OUTLINE[level](); // the island's outline now includes the new land (for walking, fences, digging…)
   if(fence.built) buildFences(false);
-  for(let i=0;i<14;i++) burst(V3(R(-2, 4.5), 0.2, R(-10, -4)), pick([0x5b9a3a, 0x6b4a2f]), 6, { up: 0.9 });
 }
+const buildExpansion = () => growLand(1);
 const house = { B: null, popT: 1, has: {} };
+const homes = [], BEDS = []; // every home Bob has built, and every bed you can sleep in
+function clearHomeGrass(){ // no grass poking up through the floor of any home, whichever piece of land it sits on (or gets added later)
+  for(const { B } of homes) for(const isl of [island1, ...landPatches, ...(mainland ? [mainland] : [])]) clearGrass(isl, B.x0 - 0.25, B.x1 + 0.25, B.z0 - 0.25, B.z1 + 0.25);
+}
+function settleHome(B){ // pop the building up out of the ground and tidy the lot
+  homes.push({ B, popT: 0 }); B.group.scale.y = 0.01;
+  clearHomeGrass();
+  if(P.pos.x > B.x0 - 0.4 && P.pos.x < B.x1 + 0.4 && P.pos.z > B.z0 - 0.4 && P.pos.z < B.z1 + 0.4) P.pos.set(B.door.x + B.out[0]*1.6, 0, B.door.z + B.out[1]*1.6);
+  for(let i=0;i<8;i++) burst(V3(R(B.x0, B.x1), 0.3, R(B.z0, B.z1)), 0xc8b89a, 8, { up: 0.8 });
+}
 const HOUSE_UPGRADES = [
   { id: 'house', name: 'Cozy Cottage', desc: 'A little wooden cottage on a new patch of land Bob adds to the corner of the L, with a display table inside.', cost: 150 },
-  { id: 'bed', name: 'Comfy Bed', desc: 'A bed with a red quilt and a fluffy pillow.', cost: 80 },
-  { id: 'lantern', name: 'Warm Lantern', desc: 'Sits on the table and lights the cottage with a cosy glow.', cost: 40 },
-  { id: 'rug', name: 'Woven Rug', desc: 'A striped rug for the floor.', cost: 30 },
-  { id: 'flowers', name: 'Flower Boxes', desc: 'Window boxes full of flowers outside.', cost: 25 },
+  { id: 'house2', name: 'House', desc: 'A normal-sized house next door to the cottage spot, with a bed, a dining table, a fireplace and a bookshelf.', cost: 600 },
+  { id: 'mansion', name: 'Mansion', desc: 'A huge, fancy marble mansion with two floors, a grand staircase, golden pillars, a dining hall and a royal bedroom upstairs.', cost: 5000 },
+  { id: 'bed', name: 'Comfy Bed', desc: 'A bed with a red quilt and a fluffy pillow.', cost: 80, furn: true },
+  { id: 'lantern', name: 'Warm Lantern', desc: 'Sits on the table and lights the cottage with a cosy glow.', cost: 40, furn: true },
+  { id: 'rug', name: 'Woven Rug', desc: 'A striped rug for the floor.', cost: 30, furn: true },
+  { id: 'flowers', name: 'Flower Boxes', desc: 'Window boxes full of flowers outside.', cost: 25, furn: true },
 ];
 const TABLE_POS = { x: HOUSE.cx + 0.95, z: HOUSE.cz + 0.25 };
 const lanternLight = new THREE.PointLight(0xffc27a, 0, 7, 1.4); lanternLight.position.set(TABLE_POS.x, 1.1, TABLE_POS.z); scene.add(lanternLight);
@@ -1840,10 +1912,8 @@ function buildHouseUpgrade(id){
   const X = HOUSE.cx, Z = HOUSE.cz, M = (c, r = 0.7) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
   if(id === 'house'){
     if(!expansion) buildExpansion();
-    const B = makeBuilding({ ...HOUSE, door: 's', wallMat: MAT.plankWall, roofMat: MAT.tiles, roof: 'gable', name: 'Your House', light: false });
-    house.B = B; house.popT = 0; B.group.scale.y = 0.01;
-    clearGrass(island1, B.x0 - 0.2, B.x1 + 0.2, B.z0 - 0.2, B.z1 + 0.2); clearGrass(expansion, B.x0 - 0.2, B.x1 + 0.2, B.z0 - 0.2, B.z1 + 0.2);
-    if(P.pos.x > B.x0 - 0.4 && P.pos.x < B.x1 + 0.4 && P.pos.z > B.z0 - 0.4 && P.pos.z < B.z1 + 0.4) P.pos.set(X, 0, B.z1 + 1.3);
+    const B = makeBuilding({ ...HOUSE, door: 's', wallMat: MAT.plankWall, roofMat: MAT.tiles, roof: 'gable', name: 'Your Cottage', light: false });
+    house.B = B; settleHome(B);
     for(const A of animals) if(A.x > B.x0 - 0.8 && A.x < B.x1 + 0.8 && A.z > B.z0 - 0.8 && A.z < B.z1 + 0.8){ const s = animalSpot(A.isl, A.col); if(s){ A.x = A.tx = s.x; A.z = A.tz = s.z; } }
     // the display table comes with the house
     const t = new THREE.Group(); B.group.add(t);
@@ -1852,9 +1922,10 @@ function buildHouseUpgrade(id){
     for(const dz of [-0.62, 0.62]) deco(new THREE.CylinderGeometry(0.17, 0.15, 0.45, 14), MAT.floorWood, TABLE_POS.x, 0.22, TABLE_POS.z + dz, 0, t);
     deco(new RoundedBoxGeometry(0.3, 0.02, 0.3, 1, 0.01), M(0xf2ecdf, 0.9), TABLE_POS.x - 0.1, 0.8, TABLE_POS.z - 0.1, 0.5, t);
     colliders.push({ x: TABLE_POS.x, z: TABLE_POS.z, r: 0.45, on: () => true });
-    for(let i=0;i<5;i++) burst(V3(X + R(-1.8, 1.8), 0.3, Z + R(-1.6, 1.6)), 0xc8b89a, 8, { up: 0.8 });
-  } else if(id === 'bed'){ // along the back wall, clear of the door's swing
-    const bx = X - 0.8, bz = Z - 1.05;
+  } else if(id === 'house2') buildHouse2();
+  else if(id === 'mansion') buildMansion();
+  else if(id === 'bed'){ // along the back wall, clear of the door's swing
+    const bx = X - 0.8, bz = Z - 1.05; BEDS.push({ x: bx, z: bz, y: 0 });
     deco(new RoundedBoxGeometry(1.9, 0.35, 0.95, 2, 0.05), MAT.darkWood, bx, 0.2, bz);
     deco(new RoundedBoxGeometry(1.82, 0.2, 0.86, 2, 0.08), M(0xf4efe6, 0.9), bx, 0.47, bz);
     deco(new RoundedBoxGeometry(1.2, 0.1, 0.9, 2, 0.04), M(0xb52f35, 0.9), bx + 0.33, 0.58, bz);
@@ -1873,6 +1944,128 @@ function buildHouseUpgrade(id){
     const box = (x, z, ry) => { deco(new RoundedBoxGeometry(1.2, 0.22, 0.28, 1, 0.03), MAT.darkWood, x, 1.05, z, ry); for(let i=0;i<6;i++){ const o = -0.5 + i*0.2; deco(new THREE.IcosahedronGeometry(0.065, 1), M(pick([0xff6fa0, 0xffd84a, 0xffffff, 0xb489ff, 0xff8c42]), 0.6), x + (ry ? 0 : o), 1.22 + R(0, 0.05), z + (ry ? o : 0)); } };
     box(X, Z - HOUSE.d/2 - 0.3, 0); box(X - HOUSE.w/2 - 0.3, Z, Math.PI/2);
   }
+}
+
+// ---- the two bigger homes
+const HM = (c, r = 0.7, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...o });
+function homeBed(g, bx, bz, y, w, quilt, frame = MAT.darkWood){ // head towards -x
+  deco(new RoundedBoxGeometry(2.1, 0.35, w, 2, 0.05), frame, bx, y + 0.2, bz, 0, g);
+  deco(new RoundedBoxGeometry(0.14, 1.0, w + 0.06, 2, 0.04), frame, bx - 1.05, y + 0.5, bz, 0, g);
+  deco(new RoundedBoxGeometry(2.0, 0.2, w - 0.1, 2, 0.08), HM(0xf4efe6, 0.9), bx, y + 0.47, bz, 0, g);
+  deco(new RoundedBoxGeometry(1.35, 0.1, w - 0.04, 2, 0.04), HM(quilt, 0.9), bx + 0.33, y + 0.58, bz, 0, g);
+  for(const dz of (w > 1.3 ? [-w*0.24, w*0.24] : [0])) deco(new RoundedBoxGeometry(0.34, 0.14, 0.56, 2, 0.06), HM(0xffffff, 0.9), bx - 0.72, y + 0.63, bz + dz, 0, g);
+  boxes.push({ x0: bx - 1.1, x1: bx + 1.05, z0: bz - w/2, z1: bz + w/2, y0: y, y1: y + 0.6 }); BEDS.push({ x: bx, z: bz, y });
+}
+function homeTable(g, x, z, y, len, chairs, top = MAT.darkWood){ // long table along x with stools down both sides
+  deco(new RoundedBoxGeometry(len, 0.08, 1.0, 2, 0.03), top, x, y + 0.78, z, 0, g);
+  for(const sx of [-1, 1]) for(const sz of [-1, 1]) deco(new THREE.CylinderGeometry(0.05, 0.06, 0.76, 8), top, x + sx*(len/2 - 0.15), y + 0.38, z + sz*0.38, 0, g);
+  for(let i=0;i<chairs;i++){ const cxx = x - len/2 + len*(i + 0.5)/chairs; for(const sz of [-1, 1]){ deco(new THREE.CylinderGeometry(0.2, 0.18, 0.45, 14), MAT.floorWood, cxx, y + 0.22, z + sz*0.85, 0, g); deco(new RoundedBoxGeometry(0.4, 0.07, 0.4, 2, 0.03), HM(0xb52f35, 0.9), cxx, y + 0.47, z + sz*0.85, 0, g); } }
+  boxes.push({ x0: x - len/2, x1: x + len/2, z0: z - 0.5, z1: z + 0.5, y0: y, y1: y + 0.8 });
+}
+function homeShelf(g, x, z, y, len, alongX, face = 1){
+  const w = alongX ? len : 0.4, d = alongX ? 0.4 : len;
+  deco(new RoundedBoxGeometry(w, 2.0, d, 2, 0.03), MAT.darkWood, x, y + 1.0, z, 0, g);
+  const cols = [0xb52f35, 0x2e86c1, 0x2f8f5b, 0xd4a017, 0x7d3c98, 0xe67e22];
+  for(let r=0;r<3;r++) for(let i=0;i<Math.floor(len/0.16) - 1;i++){ const o = -len/2 + 0.16 + i*0.16, hgt = R(0.3, 0.42); deco(new THREE.BoxGeometry(alongX ? 0.11 : 0.3, hgt, alongX ? 0.3 : 0.11), HM(pick(cols), 0.8), x + (alongX ? o : 0.08*face), y + 0.3 + r*0.6 + hgt/2, z + (alongX ? 0.08*face : o), 0, g); }
+  boxes.push({ x0: x - w/2, x1: x + w/2, z0: z - d/2, z1: z + d/2, y0: y, y1: y + 2 });
+}
+function homeFireplace(g, x, z, h, out){ // against the east wall, chimney up through the roof
+  deco(worldBox(0.7, 1.5, 1.8, 1), MAT.stoneBlock, x - 0.2, 0.75, z, 0, g);
+  deco(new THREE.BoxGeometry(0.2, 0.8, 1.0), HM(0x1a1614, 1), x - 0.5, 0.45, z, 0, g);
+  deco(new RoundedBoxGeometry(0.9, 0.1, 2.0, 2, 0.03), MAT.darkWood, x - 0.25, 1.55, z, 0, g);
+  const fire = deco(new THREE.ConeGeometry(0.22, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0xffb040, emissive: 0xff7a1a, emissiveIntensity: 3 }), x - 0.5, 0.35, z, 0, g);
+  const L = new THREE.PointLight(0xffa860, 6, 9, 1.4); L.position.set(x - 1.0, 0.9, z); g.add(L);
+  deco(worldBox(0.9, h + 2.2, 1.1, 1), MAT.stoneBlock, x + out, (h + 2.2)/2, z, 0, g);
+  boxes.push({ x0: x - 0.6, x1: x + 0.2, z0: z - 0.9, z1: z + 0.9, y0: 0, y1: 1.6 });
+  return fire;
+}
+function buildHouse2(){
+  growLand(2);
+  const H = HOUSE2, B = makeBuilding({ ...H, door: 's', wallMat: texMat(C.concrete, { roughness: 0.85, color: 0xf3e3c4, emissive: 0x2a251c }), roofMat: texMat(C.concrete, { roughness: 0.7, color: 0x3f7a5a }), roof: 'gable', trimMat: MAT.darkWood, name: 'Your House', light: false });
+  const g = B.group; settleHome(B);
+  homeBed(g, B.x0 + 1.4, B.z0 + 0.85, 0, 1.2, 0x2e6fb5);
+  homeTable(g, H.cx + 1.2, H.cz - 0.2, 0, 1.6, 2);
+  homeShelf(g, B.x0 + 0.4, H.cz + 1.2, 0, 1.6, false);
+  homeFireplace(g, B.x1 - 0.15, H.cz - 0.3, H.h, 0.55);
+  { const c = makeCanvas(128), q = c.getContext('2d'); ['#2e6fb5', '#f5e6c8', '#2f8f5b', '#f5e6c8', '#2e6fb5'].forEach((col, i) => { q.fillStyle = col; q.fillRect(0, i*128/5, 128, 128/5 + 1); });
+    deco(new RoundedBoxGeometry(2.2, 0.02, 1.4, 1, 0.01), new THREE.MeshStandardMaterial({ map: tex(c, 1), roughness: 1 }), H.cx - 1.2, 0.04, H.cz + 1.4, 0, g); }
+  // doorstep, a porch lamp and flower boxes under the front windows
+  walkables.push(deco(worldBox(2.4, 0.12, 0.9, 1), MAT.stoneBlock, H.cx, 0.02, B.z1 + 0.55, 0, g));
+  for(const sx of [-1, 1]){ const fx = H.cx + sx*2.1; deco(new RoundedBoxGeometry(1.2, 0.22, 0.28, 1, 0.03), MAT.darkWood, fx, 0.95, B.z1 + 0.3, 0, g); for(let i=0;i<6;i++) deco(new THREE.IcosahedronGeometry(0.065, 1), HM(pick([0xff6fa0, 0xffd84a, 0xffffff, 0xb489ff, 0xff8c42]), 0.6), fx - 0.5 + i*0.2, 1.12 + R(0, 0.05), B.z1 + 0.3, 0, g); }
+  const L = new THREE.PointLight(0xffe2b8, 7, 10, 1.3); L.position.set(H.cx, H.h - 0.5, H.cz); g.add(L);
+}
+function buildMansion(){
+  growLand(3);
+  const H = MANSION, F2 = 3.6; // F2 = height of the upstairs floor
+  const white = texMat(C.marble, { roughness: 0.5, color: 0xffffff, emissive: 0x4a463e }), slate = texMat(C.concrete, { roughness: 0.55, color: 0x3454a8 }), GOLD = MAT.gold.clone(), velvet = HM(0x8a1f2d, 0.9);
+  const B = makeBuilding({ ...H, door: 'w', wallMat: white, roofMat: slate, roof: 'gable', trimMat: MAT.marble, floorMat: MAT.marble, name: 'Your Mansion', light: false });
+  GOLD.emissive.set(0x8a5c10); GOLD.emissiveIntensity = 0.7;
+  const g = B.group, up = new THREE.Group(); g.add(up); B.upGroup = up; B.upY = F2 - 0.5; settleHome(B);
+  // a balcony over the front door, a gold door frame and a gold ridge along the roof
+  deco(worldBox(1.3, 0.16, 3.4, 2), white, B.x0 - 0.8, F2 - 0.1, H.cz, 0, g);
+  for(const zz of [-1.7, 1.7]) deco(new THREE.BoxGeometry(1.3, 0.08, 0.08), GOLD, B.x0 - 0.8, F2 + 0.9, H.cz + zz, 0, g);
+  deco(new THREE.BoxGeometry(0.08, 0.08, 3.48), GOLD, B.x0 - 1.42, F2 + 0.9, H.cz, 0, g);
+  for(let i=0;i<=8;i++) deco(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 8), GOLD, B.x0 - 1.42, F2 + 0.45, H.cz - 1.7 + i*0.425, 0, g);
+  deco(new RoundedBoxGeometry(0.2, 1.9, 1.3, 2, 0.05), MAT.glass, B.x0 - 0.1, F2 + 1.1, H.cz, 0, g);
+  for(const zz of [-1.02, 1.02]) deco(new THREE.BoxGeometry(0.14, 2.8, 0.16), GOLD, B.x0 - 0.2, 1.4, H.cz + zz, 0, g);
+  deco(new THREE.BoxGeometry(0.14, 0.16, 2.2), GOLD, B.x0 - 0.2, 2.78, H.cz, 0, g);
+  deco(new THREE.BoxGeometry(H.w + 0.9, 0.16, 0.16), GOLD, H.cx, H.h + (H.d + 0.8)*0.38 + 0.04, H.cz, 0, B.roofGroup);
+  for(const sx of [-1, 1]) deco(new THREE.ConeGeometry(0.16, 0.7, 10), GOLD, H.cx + sx*(H.w/2 + 0.4), H.h + (H.d + 0.8)*0.38 + 0.4, H.cz, 0, B.roofGroup);
+  const x0 = B.x0 + 0.15, x1 = B.x1 - 0.15, z0 = B.z0 + 0.15, z1 = B.z1 - 0.15;
+  // --- outside: a second row of windows, a gold band, pillars, front steps, hedges
+  for(let i=0;i<3;i++){ const px = B.x0 + H.w*(i + 0.5)/3; for(const zz of [B.z0, B.z1]) deco(new RoundedBoxGeometry(1.2, 1.2, 0.42, 2, 0.05), MAT.glass, px, 5.3, zz, 0, g); }
+  for(let i=0;i<2;i++){ const pz = B.z0 + H.d*(i + 0.5)/2; deco(new RoundedBoxGeometry(0.42, 1.2, 1.2, 2, 0.05), MAT.glass, B.x1, 5.3, pz, 0, g); deco(new RoundedBoxGeometry(0.42, 1.2, 1.2, 2, 0.05), MAT.glass, B.x0, 5.3, pz, 0, g); deco(new RoundedBoxGeometry(0.42, 1.0, 1.2, 2, 0.05), MAT.glass, B.x0, 1.9, pz, 0, g); }
+  for(const by of [F2 - 0.1, H.h - 0.1]){ for(const zz of [B.z0 - 0.17, B.z1 + 0.17]) deco(new THREE.BoxGeometry(H.w + 0.5, 0.18, 0.08), GOLD, H.cx, by, zz, 0, g); for(const xx of [B.x0 - 0.17, B.x1 + 0.17]) deco(new THREE.BoxGeometry(0.08, 0.18, H.d + 0.5), GOLD, xx, by, H.cz, 0, g); }
+  for(const pz of [-3.6, -1.5, 1.5, 3.6]){ const px = B.x0 - 1.5, zz = H.cz + pz;
+    deco(new THREE.CylinderGeometry(0.26, 0.3, H.h - 0.5, 18), white, px, (H.h - 0.5)/2, zz, 0, g);
+    deco(new THREE.BoxGeometry(0.8, 0.25, 0.8), GOLD, px, 0.12, zz, 0, g); deco(new THREE.BoxGeometry(0.8, 0.25, 0.8), GOLD, px, H.h - 0.62, zz, 0, g);
+    colliders.push({ x: px, z: zz, r: 0.35, on: () => true }); }
+  deco(worldBox(2.2, 0.5, 8.6, 2), white, B.x0 - 1.1, H.h - 0.25, H.cz, 0, B.roofGroup); // porch roof over the pillars
+  walkables.push(deco(worldBox(2.0, 0.14, 8.4, 2), MAT.marble, B.x0 - 1.1, 0.03, H.cz, 0, g));
+  deco(new RoundedBoxGeometry(1.9, 0.02, 2.0, 1, 0.01), velvet, B.x0 - 1.1, 0.11, H.cz, 0, g);
+  for(const pz of [-1.25, 1.25]){ deco(new THREE.CylinderGeometry(0.06, 0.1, 1.5, 10), GOLD, B.x0 - 0.35, 0.75, H.cz + pz, 0, g); deco(new THREE.SphereGeometry(0.17, 14, 10), new THREE.MeshStandardMaterial({ color: 0xfff0c0, emissive: 0xffc860, emissiveIntensity: 2.2 }), B.x0 - 0.35, 1.6, H.cz + pz, 0, g); }
+  for(const [bx, bz] of [[B.x0 - 1.2, B.z0 + 0.3], [B.x0 - 1.2, B.z1 - 0.3], [B.x1 + 0.9, H.cz]]) makeBush(bx, bz, 0.9);
+  // --- downstairs: red carpet, dining hall, sofa by the fire, bookshelves
+  deco(new RoundedBoxGeometry(7.0, 0.02, 1.8, 1, 0.01), velvet, B.x0 + 3.8, 0.04, H.cz, 0, g);
+  for(const sz of [-1, 1]) deco(new THREE.BoxGeometry(7.0, 0.022, 0.1), GOLD, B.x0 + 3.8, 0.04, H.cz + sz*0.95, 0, g);
+  homeTable(g, H.cx + 1.2, z1 - 2.0, 0, 4.6, 5);
+  for(const o of [-1.5, 0, 1.5]){ deco(new THREE.CylinderGeometry(0.1, 0.13, 0.05, 12), GOLD, H.cx + 1.2 + o, 0.85, z1 - 2.0, 0, g); deco(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8), HM(0xfff6e0, 0.6), H.cx + 1.2 + o, 1.0, z1 - 2.0, 0, g); deco(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffd08a, emissive: 0xffa640, emissiveIntensity: 3 }), H.cx + 1.2 + o, 1.2, z1 - 2.0, 0, g); }
+  homeFireplace(g, x1, H.cz - 0.2, H.h, 0.7);
+  { const sx = x1 - 2.6, sz = H.cz - 0.2; // sofa facing the fire
+    deco(new RoundedBoxGeometry(0.9, 0.45, 2.2, 2, 0.1), velvet, sx, 0.25, sz, 0, g); deco(new RoundedBoxGeometry(0.25, 0.9, 2.2, 2, 0.1), velvet, sx - 0.4, 0.5, sz, 0, g);
+    for(const s of [-1, 1]) deco(new RoundedBoxGeometry(0.9, 0.7, 0.25, 2, 0.1), velvet, sx, 0.38, sz + s*1.1, 0, g);
+    boxes.push({ x0: sx - 0.5, x1: sx + 0.45, z0: sz - 1.2, z1: sz + 1.2, y0: 0, y1: 0.7 }); }
+  homeShelf(g, x0 + 0.25, H.cz + 3.0, 0, 2.2, false); homeShelf(g, x0 + 0.25, H.cz - 2.6, 0, 1.4, false);
+  for(const [px, pz] of [[x0 + 0.5, z1 - 0.5], [x1 - 0.5, z1 - 0.5]]){ deco(new THREE.CylinderGeometry(0.26, 0.2, 0.5, 14), GOLD, px, 0.27, pz, 0, g); deco(new THREE.IcosahedronGeometry(0.45, 1), MAT_BUSH, px, 0.95, pz, 0, g); colliders.push({ x: px, z: pz, r: 0.35, y: 0, on: () => P.pos.y < 2 }); }
+  // --- the grand staircase along the back wall (a walkable ramp with steps on top)
+  const SX0 = B.x0 + 3.2, SX1 = B.x0 + 10.4, SW = 1.7, szc = z0 + SW/2, len = Math.hypot(SX1 - SX0, F2), phi = Math.atan2(F2, SX1 - SX0);
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(len, 0.24, SW), MAT.darkWood); ramp.position.set((SX0 + SX1)/2, F2/2 - 0.02, szc); ramp.rotation.z = phi; ramp.visible = false; g.add(ramp); walkables.push(ramp);
+  const NS = 18; for(let i=0;i<NS;i++){ const t = (i + 0.5)/NS, sx = lerp(SX0, SX1, t), sy = F2*(i + 1)/NS; deco(new THREE.BoxGeometry((SX1 - SX0)/NS + 0.02, 0.6, SW), MAT.marble, sx, sy - 0.3, szc, 0, g); deco(new THREE.BoxGeometry((SX1 - SX0)/NS + 0.03, 0.03, SW*0.5), velvet, sx, sy + 0.012, szc, 0, g); }
+  { const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.09, 0.09), GOLD); rail.position.set((SX0 + SX1)/2, F2/2 + 1.0, z0 + SW); rail.rotation.z = phi; g.add(rail);
+    for(let i=0;i<=6;i++){ const t = i/6; deco(new THREE.CylinderGeometry(0.035, 0.035, 1.0, 8), GOLD, lerp(SX0, SX1, t), F2*t + 0.5, z0 + SW, 0, g); } }
+  // --- upstairs floor (with a gap over the stairs), hidden while you're downstairs so you can see in
+  const holeX0 = SX0 - 0.3, holeX1 = SX1, holeZ = z0 + SW + 0.1;
+  const slab = (a, b, c, d) => { const m = new THREE.Mesh(worldBox(b - a, 0.2, d - c, 2), MAT.floorWood); m.position.set((a + b)/2, F2 - 0.1, (c + d)/2); m.castShadow = m.receiveShadow = true; up.add(m); walkables.push(m); };
+  slab(x0, x1, holeZ, z1); slab(holeX1, x1, z0, holeZ); slab(x0, holeX0, z0, holeZ);
+  const railing = (a, b, c, d) => { const horiz = b - a > d - c; deco(new THREE.BoxGeometry(horiz ? b - a : 0.09, 0.09, horiz ? 0.09 : d - c), GOLD, (a + b)/2, F2 + 0.95, (c + d)/2, 0, up);
+    const n = Math.max(2, Math.round((horiz ? b - a : d - c)/0.6)); for(let i=0;i<=n;i++) deco(new THREE.CylinderGeometry(0.035, 0.035, 0.95, 8), GOLD, horiz ? lerp(a, b, i/n) : a, F2 + 0.47, horiz ? c : lerp(c, d, i/n), 0, up);
+    boxes.push({ x0: a - 0.06, x1: b + 0.06, z0: c - 0.06, z1: d + 0.06, y0: F2 - 0.1, y1: F2 + 1.0 }); };
+  railing(holeX0, holeX1, holeZ, holeZ); railing(holeX0, holeX0, z0, holeZ);
+  // --- upstairs: a royal bedroom
+  { const bx = x0 + 1.5, bz = H.cz + 1.6; homeBed(up, bx, bz, F2, 2.0, 0x6a2c91, MAT.darkWood);
+    for(const sx of [-1.02, 1.02]) for(const sz of [-0.98, 0.98]) deco(new THREE.CylinderGeometry(0.06, 0.06, 2.1, 10), GOLD, bx + sx, F2 + 1.05, bz + sz, 0, up);
+    deco(new RoundedBoxGeometry(2.3, 0.1, 2.2, 2, 0.04), HM(0x6a2c91, 0.9), bx, F2 + 2.12, bz, 0, up); }
+  deco(new RoundedBoxGeometry(4.2, 0.02, 3.0, 1, 0.01), velvet, H.cx + 1.0, F2 + 0.02, H.cz + 1.6, 0, up);
+  deco(new RoundedBoxGeometry(3.8, 0.022, 2.6, 1, 0.01), HM(0xd9a83a, 0.8), H.cx + 1.0, F2 + 0.02, H.cz + 1.6, 0, up);
+  deco(new RoundedBoxGeometry(3.5, 0.024, 2.3, 1, 0.01), velvet, H.cx + 1.0, F2 + 0.02, H.cz + 1.6, 0, up);
+  { const wx = x1 - 0.5, wz = H.cz + 2.6; deco(new RoundedBoxGeometry(0.7, 2.2, 2.0, 2, 0.05), MAT.darkWood, wx, F2 + 1.1, wz, 0, up); for(const s of [-0.25, 0.25]) deco(new THREE.SphereGeometry(0.05, 8, 6), GOLD, wx - 0.38, F2 + 1.1, wz + s, 0, up); boxes.push({ x0: wx - 0.4, x1: wx + 0.4, z0: wz - 1.05, z1: wz + 1.05, y0: F2 - 0.1, y1: F2 + 2.2 }); }
+  { const dx = H.cx + 2.5, dz = z1 - 0.55; deco(new RoundedBoxGeometry(1.8, 0.08, 0.8, 2, 0.03), MAT.darkWood, dx, F2 + 0.78, dz, 0, up); for(const s of [-0.8, 0.8]) deco(new THREE.BoxGeometry(0.08, 0.76, 0.7), MAT.darkWood, dx + s, F2 + 0.38, dz, 0, up);
+    deco(new THREE.CylinderGeometry(0.2, 0.18, 0.45, 14), velvet, dx, F2 + 0.22, dz - 0.8, 0, up); deco(new THREE.CylinderGeometry(0.1, 0.13, 0.05, 12), GOLD, dx + 0.6, F2 + 0.85, dz, 0, up);
+    deco(new THREE.SphereGeometry(0.12, 12, 10), new THREE.MeshStandardMaterial({ color: 0xfff0c0, emissive: 0xffc860, emissiveIntensity: 2.2 }), dx + 0.6, F2 + 1.0, dz, 0, up);
+    boxes.push({ x0: dx - 0.9, x1: dx + 0.9, z0: dz - 0.4, z1: dz + 0.4, y0: F2 - 0.1, y1: F2 + 0.8 }); }
+  homeShelf(up, H.cx - 1.5, z1 - 0.3, F2, 2.0, true, -1);
+  for(const [lx, ly, lz, pw] of [[H.cx - 2, 2.9, H.cz + 1, 9], [H.cx + 3, 2.9, H.cz + 1, 9]]){ const L = new THREE.PointLight(0xffe2b8, pw, 12, 1.3); L.position.set(lx, ly, lz); g.add(L); }
+  { const L = new THREE.PointLight(0xffe2b8, 9, 12, 1.3); L.position.set(H.cx, F2 + 2.6, H.cz + 1); up.add(L); }
 }
 
 // ---------------------------------------------------------------- Bob's big projects: island fences & connecting bridges
@@ -1927,7 +2120,13 @@ const homeIslands = () => mainland ? [island1, island2, island3, mainland] : [is
 function connectIslands(){
   if(mainland) return;
   mainland = makeIsland({ poly: MAINLAND_POLY, holes: [circlePoly(POOL.x, POOL.z, POOL.r - 0.3)], name: 'Skylands', depth: 1.4, grassDensity: 5 });
-  mainland.group.position.y = -0.03; mainland.group.scale.set(1, 0.01, 1); mainlandPop = 0;
+  mainland.group.position.y = -0.03; mainland.group.scale.set(1, 0.01, 1); mainlandPop = 0; clearHomeGrass();
+  // it's all one island now, so the bridges come down
+  for(const br of [bridge1, bridge2, bridge3]){
+    for(const p of br.parts){ if(p.group.visible) burst(V3(p.c.x, 0.3, p.c.z), 0xb8b2a8, 4, { up: 0.7 }); p.group.visible = false; const i = walkables.indexOf(p.deck); if(i >= 0) walkables.splice(i, 1); }
+    br.built = 0; br.active = false; br.done = true; if(br.npc) br.npc.building = false;
+  }
+  F.bridge1 = F.bridge2 = true;
   if(fence.built) buildFences(false);
   for(let i=0;i<40;i++){ const p = MAINLAND_POLY[Math.floor(R(0, MAINLAND_POLY.length))]; burst(V3(p.x, 0.2, p.z), pick([0x5b9a3a, 0x6b4a2f]), 6, { up: 1 }); }
 }
@@ -1935,7 +2134,7 @@ function growMainland(dt){ if(mainland && mainlandPop < 1){ mainlandPop = Math.m
 
 const _dw = V3();
 function updateHub(dt, now){
-  for(const B of buildings){ B.inside = P.pos.x > B.x0 && P.pos.x < B.x1 && P.pos.z > B.z0 && P.pos.z < B.z1 && P.pos.y < B.h; B.roofGroup.visible = !B.inside; }
+  for(const B of buildings){ B.inside = P.pos.x > B.x0 && P.pos.x < B.x1 && P.pos.z > B.z0 && P.pos.z < B.z1 && P.pos.y < B.h; B.roofGroup.visible = !B.inside; if(B.upGroup) B.upGroup.visible = !(B.inside && P.pos.y < B.upY); }
   for(const D of doors){ // doors swing open as you walk up, and shut behind you once you're clear
     if(!D.open && d2(D.x, D.z) < 2.3 && Math.abs(P.pos.y - D.pivot.getWorldPosition(_dw).y) < 1.5){ D.open = true; D.far = 0; }
     if(D.open){ if(d2(D.x, D.z) > 2.6){ D.far += dt; if(D.far > 0.5){ D.open = false; if(d2(D.x, D.z) < 20) sfx('door'); } } else D.far = 0; }
@@ -1945,12 +2144,12 @@ function updateHub(dt, now){
     if(!w.alive && now > w.regenAt){ w.alive = true; w.mesh.visible = true; w.pop = 0; walkables.push(w.mesh); }
     if(w.pop < 1){ w.pop = Math.min(1, w.pop + dt*4); w.mesh.scale.setScalar(Math.max(0.05, easeOut(w.pop))); }
   }
-  for(const b of placed) if(b.pop < 1){ b.pop = Math.min(1, b.pop + dt*7); b.obj.scale.setScalar(0.6 + 0.4*easeOut(b.pop)); }
+  for(const b of placed) if(b.pop < 1){ b.pop = Math.min(1, b.pop + dt*7); b.obj.scale.setScalar((0.6 + 0.4*easeOut(b.pop))*BS); }
   for(const b of placed){ const lid = b.obj.userData.lid; if(!lid) continue; const want = S.invOpen && S.invChest && S.invChest.storage === b.storage ? 1 : 0;
     if(want !== b.lidWant){ if(b.lidWant !== undefined) sfx(want ? 'open' : 'door'); b.lidWant = want; }
     b.lidT = clamp((b.lidT || 0) + (want ? dt*3 : -dt*3.5), 0, 1); lid.rotation.x = -1.95 * easeOut(b.lidT); }
   if(fence.group && fence.popT < 1){ fence.popT = Math.min(1, fence.popT + dt*1.5); fence.group.scale.y = Math.max(0.01, easeOut(fence.popT)); }
-  if(house.B && house.popT < 1){ house.popT = Math.min(1, house.popT + dt*1.1); house.B.group.scale.y = Math.max(0.01, easeOut(house.popT)); }
+  for(const hm of homes) if(hm.popT < 1){ hm.popT = Math.min(1, hm.popT + dt*1.1); hm.B.group.scale.y = Math.max(0.01, easeOut(hm.popT)); }
   updateBobLocation();
   if(inHub()){
     for(const n of hubNPCs){
@@ -2167,8 +2366,8 @@ function digSpot(){
   if(inHub() || Math.abs(P.pos.y) > 0.3 || !P.grounded) return null;
   const isl = homeIslands().find(il => pointInPoly(x, z, il.poly) && distToPoly(x, z, il.poly) > 0.7); if(!isl) return null;
   if(Math.hypot(x - POOL.x, z - POOL.z) < POOL.r + 0.9) return null;
-  if(house.B && x > house.B.x0 - 0.6 && x < house.B.x1 + 0.6 && z > house.B.z0 - 0.6 && z < house.B.z1 + 0.6) return null;
-  if(placed.some(b => b.x === x && b.z === z)) return null;
+  if(homes.some(({ B }) => x > B.x0 - 0.6 && x < B.x1 + 0.6 && z > B.z0 - 0.6 && z < B.z1 + 0.6)) return null;
+  if(placed.some(b => b.y < 0.5 && Math.abs(b.x - x) < 0.5 + BS/2 && Math.abs(b.z - z) < 0.5 + BS/2)) return null;
   for(const c of colliders){ if(c.on() && c.r > 0.4 && Math.hypot(x - c.x, z - c.z) < c.r + 0.3) return null; }
   return { x, z, isl, key: x + ',' + z };
 }
@@ -2197,21 +2396,22 @@ function buildTarget(){
   const hit = cursorHit(); if(!hit) return null;
   const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
   const cell = placed.find(b => b.hit === hit.object) || wools.find(w => w.alive && w.mesh === hit.object && { x: w.x, y: w.y - 0.5, z: w.z });
+  const snap = v => (Math.floor(v/BS) + 0.5)*BS;
   let x, z, base;
-  if(cell){
-    const cy = cell.mesh ? cell.y - 0.5 : cell.y, ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+  if(cell){ // stick the new block onto the side of the one you're pointing at
+    const wool = !!cell.mesh, cs = wool ? 1 : BS, cy = wool ? cell.y - 0.5 : cell.y, ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
     x = cell.x; z = cell.z; base = cy;
-    if(ay >= ax && ay >= az) base = n.y > 0 ? cy + 1 : cy - 1;
-    else if(ax >= az) x += Math.sign(n.x); else z += Math.sign(n.z);
-  } else if(n.y > 0.5){ x = Math.floor(hit.point.x) + 0.5; z = Math.floor(hit.point.z) + 0.5; base = hit.point.y; }
-  else { const p = hit.point.clone().addScaledVector(n, 0.5); x = Math.floor(p.x) + 0.5; z = Math.floor(p.z) + 0.5; base = Math.floor(hit.point.y); }
+    if(ay >= ax && ay >= az) base = n.y > 0 ? cy + cs : cy - BS;
+    else if(ax >= az) x += Math.sign(n.x)*(cs + BS)/2; else z += Math.sign(n.z)*(cs + BS)/2;
+  } else if(n.y > 0.5){ x = snap(hit.point.x); z = snap(hit.point.z); base = hit.point.y; }
+  else { const p = hit.point.clone().addScaledVector(n, BS/2); x = snap(p.x); z = snap(p.z); base = Math.floor(hit.point.y/BS + 0.001)*BS; }
   const t = { x, z, base, ok: true, why: '' };
   const bad = w => { t.ok = false; t.why = w; return t; };
-  if(Math.hypot(x - P.pos.x, base + 0.5 - (P.pos.y + 1), z - P.pos.z) > 7) return bad('That\'s too far away — move closer.');
+  if(Math.hypot(x - P.pos.x, base + BS/2 - (P.pos.y + 1), z - P.pos.z) > 7) return bad('That\'s too far away — move closer.');
   if(inHub() && Math.abs(x - HUB.x) < 4.6 && Math.abs(z - HUB.z) < 4.6) return bad('You can\'t build on the portal.');
-  if(base < P.pos.y + 1.7 && base + 1 > P.pos.y + 0.05 && Math.abs(P.pos.x - x) < 0.8 && Math.abs(P.pos.z - z) < 0.8) return bad('You\'re standing there!');
-  for(const b of boxes){ if(b.on && !b.on()) continue; if(x + 0.45 > b.x0 && x - 0.45 < b.x1 && z + 0.45 > b.z0 && z - 0.45 < b.z1 && base + 0.95 > b.y0 && base + 0.05 < b.y1) return bad('Something is already there.'); }
-  for(const c of colliders){ if(!c.on() || base > 1.8) continue; if(Math.hypot(x - c.x, z - c.z) < c.r + 0.5) return bad('Something is in the way.'); }
+  if(base < P.pos.y + 1.7 && base + BS > P.pos.y + 0.05 && Math.abs(P.pos.x - x) < 0.3 + BS/2 && Math.abs(P.pos.z - z) < 0.3 + BS/2) return bad('You\'re standing there!');
+  for(const b of boxes){ if(b.on && !b.on()) continue; if(x + BS*0.45 > b.x0 && x - BS*0.45 < b.x1 && z + BS*0.45 > b.z0 && z - BS*0.45 < b.z1 && base + BS*0.95 > b.y0 && base + BS*0.05 < b.y1) return bad('Something is already there.'); }
+  for(const c of colliders){ if(!c.on() || base > 1.8) continue; if(Math.hypot(x - c.x, z - c.z) < c.r + BS/2) return bad('Something is in the way.'); }
   return t;
 }
 function updateGhost(){
@@ -2219,7 +2419,7 @@ function updateGhost(){
   if(!on){ ghost.visible = false; return; }
   const t = buildTarget();
   ghost.visible = !!t;
-  if(t){ ghost.position.set(t.x, t.base + 0.5, t.z); ghost.material.color.setHex(t.ok ? 0x7dffb0 : 0xff6b6b); }
+  if(t){ ghost.scale.setScalar(BS); ghost.position.set(t.x, t.base + BS/2, t.z); ghost.material.color.setHex(t.ok ? 0x7dffb0 : 0xff6b6b); }
 }
 function placeAtCursor(){
   const s = selItem(); if(!s || !isBlock(s.k)) return;
@@ -2295,10 +2495,12 @@ const LOG_ICONS = {
   birch_wood:  logIcon('#f2efe6', { c: '#2a2420', w: 2.5, n: 7, dash: true }, '#f0dcb0', '#c8a878'),
   spruce_wood: logIcon('#3a2416', { c: 'rgba(0,0,0,0.6)', w: 2, n: 5 }, '#b88a5a', '#7a5230'),
   acacia_wood: logIcon('#7c7468', { c: 'rgba(40,36,30,0.55)', w: 2, n: 4 }, '#e8783a', '#b8501e'),
+  maple_wood:  logIcon('#7a4a2e', { c: 'rgba(40,20,8,0.6)', w: 2, n: 4 }, '#f0b070', '#c8742a', g => { g.fillStyle = '#ff8a3a'; for(const [x, y, r] of [[-12, -9, 4], [2, -10, 3.5]]){ g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }),
+  willow_wood: logIcon('#8a8068', { c: 'rgba(50,46,34,0.6)', w: 2, n: 4 }, '#e8e0b0', '#b0a870'),
   jungle_wood: logIcon('#8a6a3c', { c: 'rgba(40,28,10,0.5)', w: 2, n: 3 }, '#d8a870', '#a07040', g => { g.fillStyle = '#4a9a2a'; for(const [x, y, r] of [[-14, -8, 4], [-6, -10, 3], [4, -9, 3.5], [-10, 8, 3]]){ g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }),
 };
 if(ITEMS.wood) ITEMS.wood.icon = ICON.wood;
-for(const [k, n, hex] of [['birch_wood', 'Birch Wood', '#f2eee2'], ['spruce_wood', 'Spruce Wood', '#7a5a3a'], ['acacia_wood', 'Acacia Wood', '#d8865a'], ['jungle_wood', 'Jungle Wood', '#b89a62']]){ ICON[k] = LOG_ICONS[k]; ITEMS[k] = { name: n, icon: ICON[k], block: true, sell: 3, mat: texMat(C.bark, { color: new THREE.Color(hex).getHex(), bumpMap: tex(C.bark, 1), bumpScale: 2.5 }), color: new THREE.Color(hex).getHex() }; }
+for(const [k, n, hex] of [['birch_wood', 'Birch Wood', '#f2eee2'], ['spruce_wood', 'Spruce Wood', '#7a5a3a'], ['acacia_wood', 'Acacia Wood', '#d8865a'], ['jungle_wood', 'Jungle Wood', '#b89a62'], ['maple_wood', 'Maple Wood', '#c8804a'], ['willow_wood', 'Willow Wood', '#a8a070']]){ ICON[k] = LOG_ICONS[k]; ITEMS[k] = { name: n, icon: ICON[k], block: true, sell: 3, mat: texMat(C.bark, { color: new THREE.Color(hex).getHex(), bumpMap: tex(C.bark, 1), bumpScale: 2.5 }), color: new THREE.Color(hex).getHex() }; }
 for(const k of Object.keys(ITEMS)) if(!ITEM_ORDER.includes(k)) ITEM_ORDER.push(k);
 WORKER_KIND.wheat = { name: 'Wheat Worker', item: 'wheat', over: 0xa0703a, hat: 0xe8c25a, price: [100, 300, 700] };
 // ================================================================ THE HUB'S SEVEN PLACES — shared systems
@@ -2401,8 +2603,9 @@ for(const G of GATES){
   const pmat = G.dusty ? DUST_MAT : MAT.pathCobble;
   pathStrip(G.hub(8.4), G.hub(31), 2.6, pmat, 0.018);
   const s = pathStrip(G.hub(29), G.hub(G.d - G.r + 1.5), 5.4, pmat, 0.004); walkables.push(s);
-  { const L = G.d - G.r + 1.5 - 29, c = G.hub(29 + L/2); const u = new THREE.Mesh(worldBox(5.4, 0.9, L, 2), MAT.dirt); u.position.set(c.x, -0.46, c.z); u.rotation.y = Math.atan2(G.ux, G.uz); scene.add(u); }
-  zSeg(G.hub(26), G.hub(G.d), 2.7);
+  walkables.push(pathStrip(G.hub(27.5), G.hub(G.d - G.r + 4), 8.6, G.dusty ? DUST_MAT : MAT.grass, -0.006)); // the ground keeps going beside the path, right up to the walls
+  { const L = G.d - G.r + 1.5 - 29, c = G.hub(29 + L/2); const u = new THREE.Mesh(worldBox(8.6, 0.9, L, 2), MAT.dirt); u.position.set(c.x, -0.46, c.z); u.rotation.y = Math.atan2(G.ux, G.uz); scene.add(u); }
+  zSeg(G.hub(26), G.hub(G.d), 3.1);
   zCircle(G.x, G.z, G.r);
   if(!G.customGround) groundDisc(G.x, G.z, G.r, G.dusty ? DUST_MAT : MAT.grass);
   { const R0 = HUB_R + 1.2 + 1.4, wr = G.r + 0.8, R1 = G.d - Math.sqrt(wr*wr - 3.3*3.3) + 0.4; for(const sd of [-1, 1]){ const off = V3(G.vx*3.75*sd, 0, G.vz*3.75*sd); stoneLineWall(G.hub(R0).add(off), G.hub(R1).add(off), 7); } stoneRingWall(G.x, G.z, wr, 7, [[G.a + Math.PI, Math.asin(3.3/wr)], ...(G.id === 'woods' ? [[G.a, Math.asin(3.3/wr)]] : [])]); }
@@ -2411,7 +2614,7 @@ for(const G of GATES){
   const sg = makeSign(G.name.toUpperCase(), 3.2, 0.62, '#2b1a10', '#ffe7a8'); const sp = G.hub(27).add(V3(G.vx*2.4, 0, G.vz*2.4));
   sg.position.set(sp.x, 2.3, sp.z); sg.rotation.y = Math.atan2(-G.ux, -G.uz); scene.add(sg);
   const sg2 = sg.clone(); sg2.rotation.y += Math.PI; sg2.position.addScaledVector(V3(G.ux, 0, G.uz), 0.02); scene.add(sg2);
-  deco(new THREE.CylinderGeometry(0.08, 0.1, 2.3, 8), MAT.darkWood, sp.x, 1.15, sp.z);
+  deco(new THREE.CylinderGeometry(0.08, 0.1, 1.99, 8), MAT.darkWood, sp.x, 0.995, sp.z);
   AREAS.push({ name: G.name, inside: () => Math.hypot(P.pos.x - G.x, P.pos.z - G.z) < G.r + 0.5 && P.pos.y > -1 });
 }
 const gate = id => GATES.find(g => g.id === id);
@@ -2463,7 +2666,7 @@ const selEnch = e => enchLvl(selItem(), e);
 const enchText = s => s?.ench ? Object.entries(s.ench).filter(([, v]) => v).map(([k, v]) => `${ENCH[k].name} ${ROMAN[v - 1]}`).join(', ') : '';
 const fortune = (n, k) => n * (Math.random() < 0.2 * selEnch('fortune') ? 2 : 1) * (fxOn('luck') && Math.random() < 0.25 ? 2 : 1);
 function playerDamage(){
-  const s = selItem(); let d = s?.k === 'legend_sword' ? 24 : s?.k === 'warrior_sword' ? 15 : s?.k === 'sword' ? 10 : s?.k === 'axe' ? 7 : s?.k === 'pick' ? 5 : 4;
+  const s = selItem(); let d = s?.k === 'legend_sword' ? 24 : s?.k === 'warrior_sword' ? 15 : s?.k === 'sword' ? 10 : s?.k === 'throw_axe' ? 12 : s?.k === 'axe' ? 7 : s?.k === 'pick' ? 5 : 4;
   d *= 1 + 0.25*enchLvl(s, 'efficiency') + 0.15*enchLvl(s, 'sharpness');
   if(fxOn('strength')) d *= 1.5;
   return d;
@@ -2481,7 +2684,7 @@ UPDATERS.push(dt => {
 });
 
 // ---- sleeping in your bed skips to the next day
-TARGETERS.push(c => { if(!house.has.bed || inHub()) return; const bx = HOUSE.cx - 0.8, bz = HOUSE.cz - 1.05, d = d2(bx, bz); if(d < 1.8) c.push({ type: 'bed', d: d - 0.2 }); });
+TARGETERS.push(c => { if(inHub()) return; for(const b of BEDS){ const d = d2(b.x, b.z); if(d < 2.0 && Math.abs(P.pos.y - b.y) < 1.2) c.push({ type: 'bed', d: d - 0.2 }); } });
 PROMPTS.bed = () => [['E', 'Sleep until morning']];
 INTERACT.bed = () => fadeThen(() => { newDay(); S.health = Math.min(100, S.health + 30); say('Good morning!', `It's Day ${S.day}. Daily enchanting is ready again.`); });
 // ================================================================ FARMS: a big round wheat field, the farm merchant, hoe / scythe / plow
@@ -2570,7 +2773,172 @@ const legendModel = makeSword({ trim: legendBlue, grip: new THREE.MeshStandardMa
 { const glow = new THREE.PointLight(0xffc040, 2.5, 3, 1.6); glow.position.z = 0.6; legendModel.add(glow); }
 for(const m of [warriorModel, legendModel]){ m.rotation.set(0, 0, Math.PI/2); m.visible = false; toolHolder.add(m); }
 const isSword = k => k === 'sword' || k === 'warrior_sword' || k === 'legend_sword';
-const TOOL_MODELS = { warrior_sword: warriorModel, legend_sword: legendModel, axe: axeModel, pick: pickModel, sword: swordModel, rod: rodModel, hoe: hoeModel, scythe: scytheModel };
+// gear you wear: a shield on your left arm (Right Shift blocks) and a sheath on your hip that holds your sword when it's not in your hand
+const shieldModel = (() => { const g = new THREE.Group();
+  const sh = new THREE.Shape(); sh.moveTo(0, 0.3); sh.lineTo(0.24, 0.22); sh.lineTo(0.24, 0); sh.quadraticCurveTo(0.22, -0.22, 0, -0.34); sh.quadraticCurveTo(-0.22, -0.22, -0.24, 0); sh.lineTo(-0.24, 0.22); sh.lineTo(0, 0.3);
+  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.012, bevelSegments: 2 }), MAT.plank); g.add(body);
+  const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: false }), MAT.ironDark); rim.scale.set(1.08, 1.06, 1); rim.position.z = -0.012; g.add(rim);
+  for(const [w, h] of [[0.05, 0.6], [0.46, 0.05]]){ const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), MAT.iron); b.position.set(0, h > w ? -0.02 : 0.08, 0.06); g.add(b); }
+  const boss = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), MAT.gold); boss.position.set(0, 0.08, 0.07); g.add(boss);
+  g.traverse(m => { if(m.isMesh) m.castShadow = true; });
+  g.position.set(-0.07, -0.14, 0); g.rotation.y = -Math.PI/2; g.visible = false; player.parts.lEl.add(g); return g; })();
+const sheathModel = (() => { const g = new THREE.Group(), leather = new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.75 });
+  const tube = new THREE.Mesh(new RoundedBoxGeometry(0.09, 0.7, 0.035, 2, 0.015), leather); tube.position.y = -0.35; g.add(tube);
+  for(const y of [-0.03, -0.66]){ const c = new THREE.Mesh(new RoundedBoxGeometry(0.1, 0.07, 0.045, 2, 0.01), MAT.gold); c.position.y = y; g.add(c); }
+  const strap = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.2), leather); strap.position.set(0, -0.02, 0.08); g.add(strap);
+  const swords = {}; for(const [k, o] of [['sword', {}], ['warrior_sword', { trim: brickRed, blade: warriorModel.children[3].material }], ['legend_sword', { trim: legendBlue, blade: legendModel.children[3].material }]]){ const m = makeSword(o); m.rotation.x = Math.PI/2; m.position.y = 0.1; m.visible = false; g.add(m); swords[k] = m; }
+  g.userData.swords = swords; g.traverse(m => { if(m.isMesh) m.castShadow = true; });
+  g.position.set(-0.2, 0.08, 0.02); g.rotation.set(0.5, 0, 0.12); g.visible = false; player.parts.hips.add(g); return g; })();
+function updateGear(){
+  shieldModel.visible = has('shield');
+  const sh = has('sheath'); sheathModel.visible = sh;
+  const best = ['legend_sword', 'warrior_sword', 'sword'].find(k => has(k) && selKey() !== k);
+  for(const [k, m] of Object.entries(sheathModel.userData.swords)) m.visible = sh && k === best;
+}
+function makeThrowAxe(){ // a short, sharp axe with a red grip and a steel-blue head
+  const g = makeAxe(); g.children[0].material = new THREE.MeshStandardMaterial({ color: 0x8a2222, roughness: 0.6 }); g.children[0].scale.z = 0.8;
+  g.children[1].material = new THREE.MeshStandardMaterial({ color: 0x8fa8c0, metalness: 1, roughness: 0.25, envMap: envTex });
+  for(const i of [1, 2]){ g.children[i].position.z = 0.5; g.children[i].scale.set(1.15, 1.15, 1); }
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), MAT.gold); pom.position.z = -0.03; g.add(pom);
+  g.traverse(m => { if(m.isMesh) m.castShadow = true; }); return g;
+}
+const throwAxeModel = makeThrowAxe(); throwAxeModel.visible = false; toolHolder.add(throwAxeModel);
+const TOOL_MODELS = { throw_axe: throwAxeModel, warrior_sword: warriorModel, legend_sword: legendModel, axe: axeModel, pick: pickModel, sword: swordModel, rod: rodModel, hoe: hoeModel, scythe: scytheModel };
+
+// ================================================================ SKILL BLOCKS: what to do to level each skill up
+const SKILL_TIPS = {
+  foraging: ['Chop down trees — the one on your island, the trees in the Woods, and the parks past the slime pads.', 'Pick bushes.', 'Knock trees over with a Throwing Axe (press T).', 'Take wood to Tree Chopper Jerry in the Woods — big deliveries give lots of foraging XP.', 'Win his tree-chopping race.'],
+  mining: ['Mine the cobblestone humps on Starter Island with your pickaxe.', 'Dig up grass and dirt.', 'Go down into the Mines from the Hub and mine ores — the deeper the level, the better the ore.', 'Ores and humps grow back, so come back for more.'],
+  fishing: ['Buy a Fishing Rod from Toolsmith Toby.', 'Fish in the pond on Pond Island or at the Fishing Lake from the Hub.', 'Click to cast, then click again when you get a bite.', 'A Lure enchantment makes fish bite sooner.'],
+  enchanting: ['Enchanting starts locked. Climb to the top of the Wizard Tower from the Hub and meet Wizard Alaric.', 'Find the scroll pieces and put them on the five enchanting tables.', 'Once it is unlocked, enchant your tools with the wizard — you can do it again every day.', 'Sleep in a bed to start a new day faster.'],
+  farming: ['Go to the Farms from the Hub and talk to Farmer Fern.', 'Harvest ripe wheat with a hoe or scythe, and plant more.', 'Sell your wheat to Fern.', 'A Wheat Worker farms for you while you are away.'],
+  combat: ['Go to the Combat Settlement from the Hub and win tournaments in the Combat Tower.', 'Each floor has harder, faster enemies and a better prize.', 'Hold Right Shift with a Shield to block most of the damage.', 'Builder Bill can make your sword longer so it reaches farther.', 'A Throwing Axe hits enemies from far away.'],
+};
+MENUS.skilltips = ({ M, btn }) => {
+  const id = M.npc.skill, sk = SKILLS.find(k => k.id === id), st = S.skills[id], max = st.lvl >= SKILL_MAX;
+  const status = st.locked ? 'Locked — unlock it at the Wizard Tower' : max ? `Level ${ROMAN[st.lvl - 1]} — the highest level!` : `Level ${ROMAN[st.lvl - 1]} · ${Math.floor(st.xp)} / ${XP_NEXT(st.lvl)} XP to the next level`;
+  return `<h2>${sk.name} Skill Block</h2><p class="sub">${status}</p><h3>How to get better at ${sk.name}</h3><div class="rows">${SKILL_TIPS[id].map((t, i) => `<div class="row"><span class="swatch" style="background:${SKILL_BLOCKS.find(b => b[0] === id)[2]};display:grid;place-items:center;font-weight:900;color:#fff">${i + 1}</span><div><div class="nm">${t}</div></div><div class="acts"></div></div>`).join('')}</div><div class="rows">${`<div class="row"><span></span><div><div class="ds">Right-click the block to pick it back up.</div></div><div class="acts">${btn('Got it', 'close')}</div></div>`}</div>`;
+};
+
+// ================================================================ THE THROWING AXE: press T to throw it — it knocks over trees and hurts enemies, then you go and pick it up
+const thrown = { mesh: makeThrowAxe(), state: 'none', vel: V3(), t: 0, slot: null, dmg: 0, hitSet: new Set() }; // state: none | flying | landed
+thrown.mesh.visible = false; scene.add(thrown.mesh);
+function throwAxe(){
+  if(S.menu || S.invOpen || S.dead || !S.playing || isFrozen() || plow.riding || P.swimming) return;
+  if(thrown.state !== 'none'){ if(selKey() === 'throw_axe' || !has('throw_axe')) popup(thrown.state === 'flying' ? 'Your axe is still flying!' : 'Go and pick up your axe first!', P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); return; }
+  if(selKey() !== 'throw_axe'){ if(!has('throw_axe')){ say('Hint', 'You need a Throwing Axe to throw. Toolsmith Toby sells them in the Merchants Hall.'); return; } if(!equip('throw_axe')){ say('Hint', 'Put your Throwing Axe in your hotbar first.'); return; } }
+  if(swing.t >= 0) return;
+  thrown.dmg = Math.round(playerDamage() * 1.5); thrown.slot = S.slots[S.selIdx]; thrown.idx = S.selIdx; S.slots[S.selIdx] = null; renderHotbar();
+  const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
+  thrown.mesh.position.set(P.pos.x + fx*0.7, P.pos.y + 1.5, P.pos.z + fz*0.7); thrown.mesh.rotation.set(0, P.yaw, 0); thrown.mesh.visible = true;
+  thrown.vel.set(fx*17, 3.2, fz*17); thrown.state = 'flying'; thrown.t = 0; thrown.hitSet.clear(); sfx('cast');
+}
+function thrownStop(bounce){ thrown.vel.x *= -0.12*bounce; thrown.vel.z *= -0.12*bounce; thrown.vel.y = Math.max(thrown.vel.y, 1.5); thrown.stopped = true; }
+function thrownBack(msg){ thrown.state = 'none'; thrown.mesh.visible = false; if(spaceFor('throw_axe') >= 1){ addItem('throw_axe', 1); } renderHotbar(); if(msg) popup(msg, P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); }
+UPDATERS.push(dt => {
+  if(thrown.state === 'flying'){
+    const m = thrown.mesh, p = m.position, px = p.x, pz = p.z; thrown.t += dt;
+    thrown.vel.y -= 14*dt; p.addScaledVector(thrown.vel, dt); m.rotateX(dt * (thrown.stopped ? 6 : 22)); // spins end over end
+    if(!thrown.stopped){
+      for(const tr of trees) if(tr.standing && Math.hypot(tr.x - p.x, tr.z - p.z) < 0.75){ fellTree(tr, thrown.vel.x, thrown.vel.z); skillXP('foraging', 2); thrownStop(1); break; }
+      if(!thrown.stopped) for(const f of ATTACKABLE) for(const a of f()) if(!thrown.stopped && Math.hypot(a.x - p.x, a.z - p.z) < 0.9 && Math.abs((a.y ?? 0) + 1 - p.y) < 1.6){ a.hit(thrown.dmg); popup('Axe hit!', V3(a.x, (a.y ?? 0) + 2.4, a.z), '#ffd166'); thrownStop(1); }
+      if(!thrown.stopped) for(const A of animals) if(A.alive && Math.hypot(A.x - p.x, A.z - p.z) < 0.8 && p.y < 2){ hitAnimal(A, 2); thrownStop(1); break; }
+      if(!thrown.stopped) for(const b of boxes) if(p.x > b.x0 && p.x < b.x1 && p.z > b.z0 && p.z < b.z1 && p.y > b.y0 && p.y < b.y1 && (!b.on || b.on())){ p.x = px; p.z = pz; sfx('hit'); thrownStop(1); break; } // bounced off a wall
+    }
+    const g = groundAt(p.x, p.z, p.y + 1.2);
+    if(g !== null && p.y <= g + 0.08 && thrown.vel.y <= 0){ p.y = g + 0.05; m.rotation.set(0, R(0, 6), Math.PI/2); thrown.state = 'landed'; thrown.stopped = false; thrown.t = 0; burst(V3(p.x, g + 0.1, p.z), 0xb8b2a8, 5, { up: 0.4 }); }
+    else if(p.y < -25 || thrown.t > 6){ thrown.stopped = false; thrownBack('Your axe fell into the sky — it flew back to you!'); }
+  } else if(thrown.state === 'landed'){
+    thrown.t += dt; const p = thrown.mesh.position; thrown.mesh.position.y += Math.sin(performance.now()*0.004)*0.0006;
+    if(thrown.t > 0.4 && Math.hypot(P.pos.x - p.x, P.pos.z - p.z) < 0.9 && Math.abs(P.pos.y - p.y) < 1.5) pickUpThrown();
+  }
+});
+function pickUpThrown(){
+  if(thrown.state !== 'landed') return;
+  if(spaceFor('throw_axe') < 1){ if(!thrown.fullSaid || performance.now() - thrown.fullSaid > 3000){ thrown.fullSaid = performance.now(); popup('Your inventory is full!', P.pos.clone().add(V3(0, 2.4, 0)), '#ffb3b3'); } return; }
+  const back = S.slots[thrown.idx] === null ? thrown.idx : S.slots[S.selIdx] === null ? S.selIdx : -1; // back into the hotbar slot it was thrown from, if that's still free
+  thrown.state = 'none'; thrown.mesh.visible = false; if(back >= 0) S.slots[back] = thrown.slot || { k: 'throw_axe', n: 1 }; else addItem('throw_axe', 1);
+  sfx('pickup'); popup('Picked up Throwing Axe', P.pos.clone().add(V3(0, 2.3, 0))); renderHotbar();
+}
+TARGETERS.push(c => { if(thrown.state !== 'landed') return; const p = thrown.mesh.position, d = d2(p.x, p.z); if(d < 2.4 && Math.abs(P.pos.y - p.y) < 1.8) c.push({ type: 'taxe', d: d - 0.6 }); });
+PROMPTS.taxe = () => [['E', 'Pick up Throwing Axe']];
+INTERACT.taxe = () => pickUpThrown();
+
+// ================================================================ BUILDER BILL'S CUSTOMIZATION: recolour your tools, homes and portal; longer sword blades
+const CUSTOM_COLORS = [['Red', '#d63a3a'], ['Orange', '#f08a24'], ['Yellow', '#f2d22e'], ['Green', '#3aa64a'], ['Teal', '#2bb5a8'], ['Blue', '#2f6fe0'], ['Purple', '#8a3fd6'], ['Pink', '#f06ab0'], ['White', '#f4f1ea'], ['Grey', '#8c9097'], ['Black', '#2a2a30'], ['Brown', '#7a4a28'], ['Gold', '#e0b030']];
+const COLOR_FEE = 50, LEN_COST = [200, 400, 800];
+const custom = { colors: {}, len: {} };
+const PAINT_TEX = tex(C.concrete, 1);
+function paintMesh(m, hex){ // each painted piece gets its own copy of its material, so nothing else in the world changes colour
+  if(!m.userData.painted){ m.material = m.material.clone(); m.userData.painted = true; m.userData.glow = m.material.emissive ? m.material.emissive.getHex() !== 0 : false; if(m.material.map){ m.material.map = PAINT_TEX; m.material.bumpMap = null; m.material.needsUpdate = true; } }
+  if(m.material.metalness > 0.5){ m.material.metalness = 0.5; m.material.roughness = Math.max(m.material.roughness, 0.35); m.userData.glow = true; } // shiny metal would hide the colour
+  m.material.color.set(hex); if(m.userData.glow) m.material.emissive.set(hex).multiplyScalar(0.4);
+}
+const isMetal = m => { if(m.userData.metal === undefined) m.userData.metal = (m.material.metalness || 0) >= 0.5; return m.userData.metal; };
+const allMeshes = root => { const out = []; root.traverse(m => { if(m.isMesh) out.push(m); }); return out; };
+const swordRoots = k => [TOOL_MODELS[k], sheathModel.userData.swords[k]];
+const toolThing = (k, roots, metalName = 'Metal parts', otherName = 'Handle') => ({ id: k, name: ITEMS[k].name, icon: () => itemIcon({ k, n: 1 }), owned: () => has(k), parts: [
+  { id: 'metal', name: metalName, meshes: () => roots().flatMap(r => r.isMesh ? [r] : allMeshes(r)).filter(isMetal) },
+  { id: 'other', name: otherName, meshes: () => roots().flatMap(r => r.isMesh ? [r] : allMeshes(r)).filter(m => !isMetal(m)) }] });
+const swordThing = k => ({ id: k, name: ITEMS[k].name, icon: () => itemIcon({ k, n: 1 }), owned: () => has(k), sword: true, parts: [
+  { id: 'blade', name: 'Blade', meshes: () => swordRoots(k).map(r => r.children[3]), paint: hex => swordRoots(k).forEach(r => r.traverse(o => { if(o.isLight) o.color.set(hex); })) }, // a glowing blade glows in its new colour
+  { id: 'hilt', name: 'Hilt', meshes: () => swordRoots(k).flatMap(r => [r.children[1], r.children[2]]) },
+  { id: 'grip', name: 'Grip', meshes: () => swordRoots(k).map(r => r.children[0]) }] });
+const homeThing = (id, name) => { const B = () => homes.find(h => h.B.name === name)?.B, part = p => () => allMeshes(B().group).filter(m => m.userData.part === p);
+  return { id: 'home_' + id, name, icon: () => `<span class="swatch" style="background:#b98a5a"></span>`, owned: () => !!house.has[id], parts: [{ id: 'wall', name: 'Walls', meshes: part('wall') }, { id: 'roof', name: 'Roof', meshes: part('roof') }, { id: 'door', name: 'Door', meshes: part('door') }, { id: 'trim', name: 'Corner posts', meshes: part('trim') }] }; };
+const CUSTOM_THINGS = [
+  ...['axe', 'pick'].map(k => toolThing(k, () => [TOOL_MODELS[k]], 'Head')),
+  toolThing('throw_axe', () => [throwAxeModel, thrown.mesh], 'Head'),
+  ...['sword', 'warrior_sword', 'legend_sword'].map(swordThing),
+  toolThing('rod', () => [rodModel], 'Metal parts', 'Rod'),
+  ...['hoe', 'scythe'].filter(k => ITEMS[k]).map(k => toolThing(k, () => [TOOL_MODELS[k]], 'Blade')),
+  toolThing('shield', () => [shieldModel], 'Metal rim', 'Front'),
+  toolThing('sheath', () => sheathModel.children.filter(c => c.isMesh), 'Metal caps', 'Leather'),
+  homeThing('house', 'Your Cottage'), homeThing('house2', 'Your House'), homeThing('mansion', 'Your Mansion'),
+  { id: 'portal', name: 'Hub Portal', icon: () => `<span class="swatch" style="background:#8a3fd6"></span>`, owned: () => true, parts: [
+    { id: 'frame', name: 'Frame', meshes: () => allMeshes(portal.group).filter(m => m.userData.part === 'frame') },
+    { id: 'swirl', name: 'Swirl', meshes: () => [], paint: hex => { portal.mat.uniforms.uTint.value.set(hex); portal.mat.uniforms.uMix.value = 1; portal.light.color.set(hex); portal.moteM.color.set(hex).lerp(new THREE.Color(0xffffff), 0.4); } }] },
+];
+for(const T of CUSTOM_THINGS) T.parts = T.parts.filter(p => p.paint || T.id.startsWith('home_') || p.meshes().length);
+// workers: each one keeps its own colours, even after you pick it up and put it down again
+const WORKER_PARTS = [['body', 'Body'], ['hat', 'Hat'], ['clothes', 'Clothes'], ['boots', 'Boots'], ['belt', 'Belt & straps']];
+const workerThing = w => { const W = workers.find(x => x.active && x.id === w.id), probe = W ? W.root : null;
+  return { id: 'worker_' + w.id, name: workerName(w) + (W ? '' : ' (in your bag)'), icon: () => workerSVG(w.kind), owned: () => true,
+    parts: WORKER_PARTS.filter(([pid]) => pid !== 'clothes' || w.kind !== 'stone').map(([pid, name]) => ({ id: pid, name, meshes: () => probe ? allMeshes(probe).filter(m => m.userData.wpart === pid) : [] })) }; };
+const customThings = () => [...CUSTOM_THINGS, ...workers.filter(w => w.active).map(workerThing), ...carriedWorkers().map(workerThing)];
+onWorkerSpawn = W => { const cur = custom.colors['worker_' + W.id]; if(cur) for(const [pid, hex] of Object.entries(cur)) for(const m of allMeshes(W.root)) if(m.userData.wpart === pid) paintMesh(m, hex); };
+MENUS.bill = ({ M, pills, row, btn }) => {
+  const line = M.pick ? '"Pick a colour for any part. Each new coat of paint is $' + COLOR_FEE + '."' : '"Name\'s Bill — I do customization! Pick something of yours and I\'ll paint it any colour you like. I can make swords longer, too."';
+  let h = `<h2>Builder Bill's Customization</h2><p class="sub">${line}</p>${pills}`;
+  if(!bridge2.done && !mainland) h += `<h3>Bridge</h3><div class="rows">${row(`<span class="swatch" style="background:#8b8e91"></span>`, 'Bridge to Worker Island', `There's a Stone Worker over there who mines for you · you have ${Math.min(countItem('stone'), 10)}/10 cobblestone`, bridge2.active ? btn('Building…', 'noop', {}, '', true) : btn('Give 10 Cobblestone', 'billBridge', {}, 'alt', countItem('stone') < 10))}</div>`;
+  const T = customThings().find(t => t.id === M.pick);
+  if(!T){
+    const owned = customThings().filter(t => t.owned());
+    h += `<h3>What should I customize?</h3><div class="rows">${owned.map(t => row(t.icon(), t.name, t.parts.map(p => p.name).join(' · ') + (t.sword ? ' · longer blade' : ''), btn('Customize', 'custPick', { id: t.id }, 'alt'))).join('')}</div><p class="sub">Tools show up here once you own them, homes once Builder Bob has built them, and every worker you own.</p>`;
+  } else {
+    const cur = custom.colors[T.id] || {};
+    h += `<h3>${T.name}</h3><div class="rows">${T.parts.map(p => row(`<span class="swatch" style="background:${cur[p.id] || 'rgba(255,255,255,0.12)'}"></span>`, p.name, `${cur[p.id] ? 'Painted ' + CUSTOM_COLORS.find(c => c[1] === cur[p.id])[0] : 'Original colour'} · ${money(COLOR_FEE)} per colour<div class="cswatches">${CUSTOM_COLORS.map(([n, c]) => `<button class="mbtn cswatch" data-act="custColor" data-part="${p.id}" data-c="${c}" title="${n}" aria-label="${p.name}: ${n}" style="background:${c}"></button>`).join('')}</div>`, '')).join('')}`;
+    if(T.sword){ const lv = custom.len[T.id] || 0; h += row(`<span class="swatch" style="background:#dfe4e8"></span>`, 'Longer blade', `Reaches farther with every level · level ${lv} / ${LEN_COST.length}${lv ? ' · ' + Math.round(lv*25) + '% longer' : ''}`, lv >= LEN_COST.length ? btn('Max length', 'noop', {}, '', true) : btn(`Make longer · ${money(LEN_COST[lv])}`, 'custLen', {}, 'alt', S.money < LEN_COST[lv])); }
+    h += `</div><div class="rows">${row('', 'Customize something else', '', btn('Back', 'custBack'))}</div>`;
+  }
+  return h;
+};
+MENU_ACTIONS.custPick = ds => { S.menu.pick = ds.id; menuMsg(''); };
+MENU_ACTIONS.custBack = () => { S.menu.pick = null; menuMsg(''); };
+MENU_ACTIONS.custColor = (ds, u) => {
+  const T = customThings().find(t => t.id === S.menu.pick), p = T && T.parts.find(q => q.id === ds.part); if(!p || !T.owned()) return;
+  const cur = custom.colors[T.id] || (custom.colors[T.id] = {}); if(cur[p.id] === ds.c){ u.msg('It\'s already that colour!'); return; }
+  if(S.money < COLOR_FEE){ u.need(COLOR_FEE); return; }
+  S.money -= COLOR_FEE; cur[p.id] = ds.c; if(p.paint) p.paint(ds.c); for(const m of p.meshes()) paintMesh(m, ds.c);
+  u.msg(`${T.name}: ${p.name.toLowerCase()} painted ${CUSTOM_COLORS.find(c => c[1] === ds.c)[0].toLowerCase()}!`);
+};
+MENU_ACTIONS.custLen = (ds, u) => {
+  const T = CUSTOM_THINGS.find(t => t.id === S.menu.pick); if(!T || !T.sword) return; const lv = custom.len[T.id] || 0; if(lv >= LEN_COST.length) return;
+  if(S.money < LEN_COST[lv]){ u.need(LEN_COST[lv]); return; }
+  S.money -= LEN_COST[lv]; custom.len[T.id] = lv + 1; for(const r of swordRoots(T.id)) r.children[3].scale.z = 1 + 0.25*(lv + 1);
+  u.msg(`Your ${T.name} is longer now and reaches farther!`);
+};
+MENU_ACTIONS.billBridge = () => { if(bridge2.done || bridge2.active || countItem('stone') < 10) return; removeItem('stone', 10); renderHotbar(); closeMenu(); startBridge(bridge2, bill); say('Builder Bill', '10 cobblestone, thanks! One bridge to Worker Island, coming right up.', bill); popup('-10 Cobblestone', P.pos.clone().add(V3(0, 2.2, 0)), '#ffb3b3'); };
 const plow = { riding: false };
 function buildPlowModel(superP){
   const g = new THREE.Group(), red = superP ? new THREE.MeshStandardMaterial({ color: 0xffc830, roughness: 0.25, metalness: 0.8, envMap: envTex, emissive: 0x6a4a00, emissiveIntensity: 0.4 }) : new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.5, metalness: 0.2 });
@@ -2652,9 +3020,9 @@ function plantSpot(){
   const onIsland = !inHub() && homeIslands().some(il => pointInPoly(x, z, il.poly) && distToPoly(x, z, il.poly) > 0.9) && Math.abs(P.pos.y) < 0.3;
   const onFarm = inHub() && Math.hypot(x - FARM.x, z - FARM.z) < FARM.r - 1.2 && Math.hypot(x - FARM_BOOTH.x, z - FARM_BOOTH.z) > 3;
   if(!onIsland && !onFarm) return null;
-  if(waterNear(x, z, 0.8) || placed.some(b => b.x === x && b.z === z)) return null;
+  if(waterNear(x, z, 0.8) || placed.some(b => Math.abs(b.x - x) < 0.5 + BS/2 && Math.abs(b.z - z) < 0.5 + BS/2)) return null;
   for(const c of colliders){ if(c.on() && Math.hypot(x - c.x, z - c.z) < c.r + 0.3) return null; }
-  if(house.B && x > house.B.x0 - 0.5 && x < house.B.x1 + 0.5 && z > house.B.z0 - 0.5 && z < house.B.z1 + 0.5) return null;
+  if(homes.some(({ B }) => x > B.x0 - 0.5 && x < B.x1 + 0.5 && z > B.z0 - 0.5 && z < B.z1 + 0.5)) return null;
   return { x, z, y: groundAt(x, z) ?? 0 };
 }
 USE_HOOKS.push(() => {
@@ -2908,7 +3276,7 @@ UPDATERS.push((dt, now) => {
 // ================================================================ THE WOODS: Tree Chopper Jerry, regrowing trees, and the chopping race
 const WG = gate('woods');
 const woodsTrees = [];
-for(let i=0;i<13;i++){ const a = i/13*Math.PI*2 + R(-0.15, 0.15), r = R(9, 14); const p = V3(WG.x + Math.cos(a)*r, 0, WG.z + Math.sin(a)*r); if(Math.abs(angDiff(a, WG.a + Math.PI)) < 0.35) continue; const t = makeTree(p, 'w' + i, ['oak', 'birch', 'spruce', 'acacia', 'jungle'][i % 5]); t.regrow = true; woodsTrees.push(t); }
+for(let i=0;i<13;i++){ const a = i/13*Math.PI*2 + R(-0.15, 0.15), r = R(9, 14); const p = V3(WG.x + Math.cos(a)*r, 0, WG.z + Math.sin(a)*r); if(Math.abs(angDiff(a, WG.a + Math.PI)) < 0.35) continue; const t = makeTree(p, 'w' + i, ['oak', 'birch', 'spruce', 'acacia', 'jungle', 'maple', 'willow'][i % 7]); t.regrow = true; woodsTrees.push(t); }
 for(let i=0;i<8;i++){ const a = R(0, 6.28), r = R(6, 15); if(Math.abs(angDiff(a, WG.a + Math.PI)) < 0.4) continue; makeBush(WG.x + Math.cos(a)*r, WG.z + Math.sin(a)*r, R(0.7, 1.1)); }
 { const lg = deco(new THREE.CylinderGeometry(0.35, 0.35, 2.2, 14), MAT.bark, WG.at(-2.5, 3).x, 0.35, WG.at(-2.5, 3).z); lg.rotation.z = Math.PI/2; lg.rotation.y = 0.6; colliders.push({ x: WG.at(-2.5, 3).x, z: WG.at(-2.5, 3).z, r: 0.9, on: () => true }); }
 // chopped Woods trees grow back: a sapling sprouts from the stump after 20 seconds and grows to full size
@@ -2947,6 +3315,8 @@ const PARKS = [
   { id: 'spruce', name: 'Spruce Island',  d: 190, r: 14, tree: 'spruce', npc: 'Spruce Shara', need: 128, pay: 100, ground: 0x4a8a5a, shirt: 0x3a6a4a, hair: 0x2a1c12 },
   { id: 'acacia', name: 'Acacia Savanna', d: 240, r: 18, tree: 'acacia', npc: 'Acacia Arin',  need: 256, pay: 150, ground: 0xfff0a0, shirt: 0xc06a3a, hair: 0x1a1410 },
   { id: 'jungle', name: 'Jungle Forest',  d: 292, r: 17, tree: 'jungle', npc: 'Jungle Jim',   need: 512, pay: 300, ground: 0x3a8a2a, shirt: 0x5a7a2a, hair: 0x3a2a1a },
+  { id: 'maple',  name: 'Maple Mania',    d: 344, r: 16, tree: 'maple',  npc: 'Maple Mabel',  need: 640, pay: 400, ground: 0xd8c070, shirt: 0xd8642a, hair: 0x8a3a1a },
+  { id: 'willow', name: 'Willow Wanderers', d: 394, r: 16, tree: 'willow', npc: 'Willow Wade', need: 768, pay: 500, ground: 0x8ac87a, shirt: 0x8aa86a, hair: 0xd9d0b0 },
 ];
 const slimeMat = new THREE.MeshStandardMaterial({ color: 0x7ee86a, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.85, emissive: 0x2a7a1a, emissiveIntensity: 0.35 });
 const slimePads = [];
@@ -2954,7 +3324,7 @@ function makeSlimePad(at, yaw, label, dest, destYaw){
   const g = new THREE.Group(); g.position.copy(at); scene.add(g);
   const base = new THREE.Mesh(new RoundedBoxGeometry(2.4, 0.2, 2.4, 2, 0.06), MAT.stoneBlock); base.position.y = 0.1; g.add(base);
   const slime = new THREE.Mesh(new RoundedBoxGeometry(2.0, 0.42, 2.0, 4, 0.18), slimeMat); slime.position.y = 0.38; g.add(slime);
-  for(const s of [-1, 1]){ const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 2.6, 8), MAT.darkWood); post.position.set(s*0.9, 1.3, -1.3); g.add(post); }
+  for(const s of [-1, 1]){ const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 2.175, 8), MAT.darkWood); post.position.set(s*0.9, 1.0875, -1.3); g.add(post); }
   const sg = makeSign(label, 2.6, 0.55, '#1f5a1a', '#d8ffb8'); sg.position.set(0, 2.45, -1.3); g.add(sg);
   const sg2 = sg.clone(); sg2.rotation.y = Math.PI; sg2.position.z = -1.32; g.add(sg2);
   g.rotation.y = yaw;
@@ -2983,7 +3353,7 @@ for(const K of PARKS){
   // the slime pad that leads here
   makeSlimePad(V3(prevPark.x, 0, prevPark.z), prevPark.yaw, `TO ${K.name.toUpperCase()}`, K.arrive.clone(), WG.yaw);
   // trees of this park's kind
-  for(let i=0;i<18;i++){ const a = i/18*Math.PI*2 + R(-0.12, 0.12), r = R(5.5, K.r - 2.2), p = V3(K.x + Math.cos(a)*r, 0, K.z + Math.sin(a)*r); if(Math.hypot(p.x - K.arrive.x, p.z - K.arrive.z) < 4) continue; if(K.id !== 'jungle' && Math.abs(angDiff(a, WG.a)) < 0.3) continue; const t = makeTree(p, K.id + i, K.tree); t.regrow = true; woodsTrees.push(t); trees.push(t); }
+  for(let i=0;i<18;i++){ const a = i/18*Math.PI*2 + R(-0.12, 0.12), r = R(5.5, K.r - 2.2), p = V3(K.x + Math.cos(a)*r, 0, K.z + Math.sin(a)*r); if(Math.hypot(p.x - K.arrive.x, p.z - K.arrive.z) < 4) continue; if(K !== PARKS[PARKS.length - 1] && Math.abs(angDiff(a, WG.a)) < 0.3) continue; const t = makeTree(p, K.id + i, K.tree); t.regrow = true; woodsTrees.push(t); trees.push(t); }
   for(let i=0;i<5;i++){ const a = R(0, 6.28), r = R(4, K.r - 1.5); makeBush(K.x + Math.cos(a)*r, K.z + Math.sin(a)*r, R(0.6, 1.0)); }
   // the quest giver
   const n = initNPC(makeNPC(F.at(-K.r + 7, 2.5), { shirt: K.shirt, pants: 0x2d3a55, hair: K.hair, skin: pick([0xdca47f, 0xb07a55, 0xe8b48e]) }, K.npc, Math.atan2(-WG.ux, -WG.uz), { hammer: false, menu: 'park_' + K.id }));
@@ -3029,7 +3399,7 @@ function drawCourseTree(T, i){
 }
 courseTrees.forEach(drawCourseTree);
 for(const V of COURSE.lanes){ // start & finish arches
-  for(const U of [0.4, COURSE_END + 3]){ for(const s of [-1.6, 1.6]){ const p = cAt(U, V + s, U < 1 ? 0 : plats[24].h); deco(new THREE.CylinderGeometry(0.1, 0.1, 3, 8), MAT.darkWood, p.x, p.y + 1.5, p.z); } const b = cAt(U, V, (U < 1 ? 0 : plats[24].h) + 3); const sg = makeSign(U < 1 ? 'START' : 'FINISH', 3.2, 0.5, U < 1 ? '#2b5a1a' : '#8a1e1e', '#ffe7a8'); sg.position.copy(b); sg.rotation.y = -Math.PI/2; scene.add(sg); }
+  for(const U of [0.4, COURSE_END + 3]){ for(const s of [-1.6, 1.6]){ const p = cAt(U, V + s, U < 1 ? 0 : plats[24].h); deco(new THREE.CylinderGeometry(0.1, 0.1, 2.75, 8), MAT.darkWood, p.x, p.y + 1.375, p.z); } const b = cAt(U, V, (U < 1 ? 0 : plats[24].h) + 3); const sg = makeSign(U < 1 ? 'START' : 'FINISH', 3.2, 0.5, U < 1 ? '#2b5a1a' : '#8a1e1e', '#ffe7a8'); sg.position.copy(b); sg.rotation.y = -Math.PI/2; scene.add(sg); }
 }
 zPoly([cAt(-1, COURSE.lanes[1] - 1.5, 0), cAt(COURSE_END + 6, COURSE.lanes[1] - 1.5, 0), cAt(COURSE_END + 6, COURSE.lanes[1] + 1.5, 0), cAt(-1, COURSE.lanes[1] + 1.5, 0)], -6, 8);
 courseTrees.forEach(T => { if(T.lane !== COURSE.me) return; const p = cAt(T.U, T.V, T.h); colliders.push({ x: p.x, z: p.z, y: T.h, r: 0.28, on: () => T.state === 0 }); });
@@ -3070,8 +3440,8 @@ TARGETERS.push(c => {
 });
 PROMPTS.ctree = () => [['Click / Space', 'Chop tree']];
 MINE_FN.ctree = t => {
-  const T = t.ref, p = cAt(T.U, T.V, 0); faceTo(p.x, p.z); if(has('axe')) equip('axe');
-  startSwing(() => { if(T.state !== 0) return; T.hits = (T.hits || 0) + 1; sfx('chop'); burst(V3(p.x, T.h + 0.8, p.z), 0x7a5230, 6); if(T.hits < (selKey() === 'axe' ? 1 : 2)) return; T.state = 1; T.t = 0; race.chopped++; skillXP('foraging', 3); });
+  const T = t.ref, p = cAt(T.U, T.V, 0); faceTo(p.x, p.z); if(hasAxe()) equipAxe();
+  startSwing(() => { if(T.state !== 0) return; T.hits = (T.hits || 0) + 1; sfx('chop'); burst(V3(p.x, T.h + 0.8, p.z), 0x7a5230, 6); if(T.hits < (isAxe(selKey()) ? 1 : 2)) return; T.state = 1; T.t = 0; race.chopped++; skillXP('foraging', 3); });
 };
 UPDATERS.push(dt => {
   // falling trees on every lane
@@ -3169,6 +3539,7 @@ function finishArena(won){
 }
 function fightDamage(n){
   if(!arena.active || arena.done) return;
+  if(P.block){ n *= 0.25; popup('Blocked!', P.pos.clone().add(V3(0, 2.6, 0)), '#cfe8ff'); }
   arena.hp = Math.max(0, arena.hp - n); sfx('hit'); popup(`-${Math.round(n)}`, P.pos.clone().add(V3(0, 2.3, 0)), '#ff8a8a');
   burst(P.pos.clone().add(V3(0, 1.2, 0)), 0xb3312a, 6, { size: 0.8 });
   if(arena.hp <= 0) finishArena(false);
@@ -3494,9 +3865,7 @@ function dressWizard(h){
   // flowing robe from the shoulders to the floor, with a gold trim strip down the front and a belt
   const robe = add(new THREE.LatheGeometry([[0.001, 1.53], [0.2, 1.5], [0.25, 1.32], [0.27, 1.0], [0.36, 0.55], [0.48, 0.04], [0.5, 0.0]].map(([r, y]) => new THREE.Vector2(r, y)), 32), robeM, h.root);
   robe.scale.z = 0.85;
-  add(new THREE.BoxGeometry(0.07, 1.42, 0.02), TRIM_MAT, h.root, 0, 0.78, 0.33).rotation.x = -0.17;
   add(new THREE.TorusGeometry(0.255, 0.02, 8, 28), TRIM_MAT, h.root, 0, 1.0, 0).rotation.x = Math.PI/2;
-  for(const s of [-1, 1]){ const c = add(new THREE.BoxGeometry(0.06, 0.32, 0.02), TRIM_MAT, P_.spine, s*0.1, 0.42, 0.13); c.rotation.z = s*0.35; } // collar trim
   // wide hanging sleeves on each arm
   for(const sh of [P_.lSh, P_.rSh]){ add(new THREE.CylinderGeometry(0.075, 0.21, 0.56, 16, 1, true), robeM, sh, 0, -0.27, 0); add(new THREE.TorusGeometry(0.205, 0.016, 6, 20), TRIM_MAT, sh, 0, -0.55, 0).rotation.x = Math.PI/2; }
   // the body underneath hides inside the robe
@@ -3726,6 +4095,7 @@ function itemIcon(s){ if(!s) return ''; if(s.k === 'worker') return workerSVG(s.
 function itemName(s){ return s.k === 'worker' ? workerName(s.w) : ITEMS[s.k].name + (s.ench ? ` (${enchText(s)})` : ''); }
 const itemBadge = s => !s ? '' : s.k === 'worker' ? `<span class="num">L${s.w.level}</span>` : s.n > 1 ? `<span class="num">${s.n}</span>` : '';
 function updateHeld(){ // what's in your hand
+  updateGear();
   const k = selKey();
   S.equipped = ITEMS[k]?.tool ? k : null;
   for(const [t, m] of Object.entries(TOOL_MODELS)) m.visible = k === t;
@@ -3740,7 +4110,7 @@ function renderHotbar(){
   let h = '';
   for(let i=0;i<HOTBAR;i++){ const s = S.slots[i]; h += `<div class="slot ${S.selIdx === i ? 'sel' : ''}" data-hb="${i}"><span class="key">${i + 1}</span>${itemIcon(s)}${itemBadge(s)}</div>`; }
   $('hotbar').innerHTML = h;
-  const s = selItem(); $('hbName').textContent = s ? itemName(s) + (ITEMS[s.k]?.food ? ` · N to eat (+${ITEMS[s.k].food} hunger)` : ITEMS[s.k]?.potion ? ' · N to drink' : isBlock(s.k) ? ' · click where you want it' : '') : '';
+  const s = selItem(); $('hbName').textContent = s ? itemName(s) + (ITEMS[s.k]?.food ? ` · N to eat (+${ITEMS[s.k].food} hunger)` : s.k === 'throw_axe' ? ' · T to throw' : ITEMS[s.k]?.potion ? ' · N to drink' : isBlock(s.k) ? ' · click where you want it' : '') : '';
   if(S.invOpen) renderInventory();
 }
 $('hotbar').addEventListener('click', e => { const el = e.target.closest('[data-hb]'); if(el && S.playing) selectIdx(+el.dataset.hb); });
@@ -3875,7 +4245,7 @@ function renderMenu(){
     if(!S.bankOpened) h += `<p class="sub">"Welcome to Skyland Bank! You don't have an account yet. Type how much you'd like to deposit to open one. Money in the bank is safe, even if you fall into the void."</p>${pills}<div class="amount"><input id="amt" type="number" min="1" step="1" inputmode="numeric" placeholder="Amount" aria-label="Amount to deposit">${btn('Open account &amp; deposit', 'deposit')}</div>`;
     else h += `<p class="sub">"Good to see you again! Type an amount, then deposit or withdraw. When you die you only lose half of what's in your wallet — never what's in here."</p>${pills}<div class="amount"><input id="amt" type="number" min="1" step="1" inputmode="numeric" placeholder="Amount" aria-label="Amount">${btn('Deposit', 'deposit')}${btn('Withdraw', 'withdraw', {}, 'alt')}</div><div class="amount">${btn('Deposit all', 'depositAll')}${btn('Withdraw all', 'withdrawAll', {}, 'alt')}</div>`;
   } else if(M.kind === 'bazaar'){
-    h += `<h2>Builder Bazaar</h2><p class="sub">"Blocks for every build! Hold a block and your mouse picks where it goes."</p>${pills}<h3>Blocks</h3><div class="rows">${['stone', 'wood', 'grass', 'dirt', 'leaves'].map(k => buyRow(k)).join('')}</div><h3>Concrete</h3><div class="rows">${ITEM_ORDER.filter(k => k.startsWith('c_') || k === 'rainbow').map(k => buyRow(k)).join('')}</div>`;
+    h += `<h2>Builder Bazaar</h2><p class="sub">"Blocks for every build! Hold a block and your mouse picks where it goes."</p>${pills}<h3>Blocks</h3><div class="rows">${['stone', 'wood', 'grass', 'dirt', 'leaves'].map(k => buyRow(k)).join('')}</div><h3>Skill blocks</h3><p class="sub">Put one down and hit it — it tells you how to get better at that skill.</p><div class="rows">${SKILL_BLOCKS.map(([id]) => buyRow('skill_' + id, 6)).join('')}</div><h3>Wool</h3><div class="rows">${WOOL_KEYS.map(k => buyRow(k)).join('')}</div><h3>Concrete</h3><div class="rows">${ITEM_ORDER.filter(k => k.startsWith('c_') || k === 'rainbow').map(k => buyRow(k)).join('')}</div>`;
   } else if(M.kind === 'hardware'){
     const owned = ITEM_ORDER.filter(k => countItem(k) > 0 && !ITEMS[k].tool && !ITEMS[k].food && ITEMS[k].sell);
     const total = owned.reduce((s, k) => s + countItem(k) * ITEMS[k].sell, 0), ws = carriedWorkers();
@@ -3888,7 +4258,7 @@ function renderMenu(){
     h += `<h2>Grocer Gus</h2><p class="sub">"The finest meats and vegetables in all of Skylands! Fresh fish? I'll buy it off you."</p>${pills}<h3>Buy food</h3><div class="rows">${['beef', 'pork', 'mutton', 'bread', 'potato', 'carrot', 'apple'].map(k => buyRow(k, 5)).join('')}</div>`;
     h += `<h3>Sell your fish &amp; food</h3><div class="rows">${mine.length ? sellRows(mine) : '<p class="sub">Catch fish at the pond on Pond Island and I\'ll pay you for them.</p>'}</div>`;
   } else if(M.kind === 'tools'){
-    h += `<h2>Toolsmith Toby</h2><p class="sub">"Iron tools, made right here. Swords for hunting, rods for fishing."</p>${pills}<h3>Tools</h3><div class="rows">${['sword', 'axe', 'pick', 'rod'].map(k => row(ic(k), ITEMS[k].name, { sword: 'Win tournaments in the Combat Tower', axe: 'Chop down trees', pick: 'Mine stone and dig', rod: 'Catch fish in the pond' }[k] + ` · you have ${countItem(k)}`, btn(`Buy · ${money(ITEMS[k].buy)}`, 'buy', { k, n: 1 }, '', S.money < ITEMS[k].buy))).join('')}</div>`;
+    h += `<h2>Toolsmith Toby</h2><p class="sub">"Iron tools, made right here. Swords for hunting, rods for fishing."</p>${pills}<h3>Tools</h3><div class="rows">${['sword', 'shield', 'sheath', 'axe', 'throw_axe', 'pick', 'rod'].map(k => row(ic(k), ITEMS[k].name, { throw_axe: 'Chops trees and fights · press T to throw it at a tree or an enemy, then go pick it up', sword: 'Win tournaments in the Combat Tower', shield: 'Worn on your arm · hold Right Shift to block', sheath: 'Worn on your hip · holds your sword when it\'s not in your hand', axe: 'Chop down trees', pick: 'Mine stone and dig', rod: 'Catch fish in the pond' }[k] + ` · you have ${countItem(k)}`, btn(`Buy · ${money(ITEMS[k].buy)}`, 'buy', { k, n: 1 }, '', S.money < ITEMS[k].buy))).join('')}</div>`;
   } else if(M.kind === 'workers'){
     const ws = carriedWorkers();
     h += `<h2>Workforce Wendy</h2><p class="sub">"Every worker holds 120 items. Hire them here, then hold them in your hotbar and press R to put them down somewhere with room. To upgrade one, walk up to it, press Q to pick it up, and bring it to me."</p>${pills}<h3>Hire</h3><div class="rows">`;
@@ -3896,12 +4266,13 @@ function renderMenu(){
     h += `</div><h3>Upgrade</h3>`;
     h += ws.length ? `<div class="rows">${ws.map(w => { const max = w.level >= 5, cost = UPGRADE_COST[w.level]; return row(workerSVG(w.kind), workerName(w), max ? `Max level · fills in ${fmtTime(WORKER_FILL[4])}` : `Fills in ${fmtTime(WORKER_FILL[w.level - 1])} → ${fmtTime(WORKER_FILL[w.level])}`, max ? btn('Max level', 'noop', {}, '', true) : btn(`Upgrade · ${money(cost)}`, 'upgrade', { id: w.id }, 'alt', S.money < cost)); }).join('')}</div>` : `<p class="sub">You aren't carrying any workers. Walk up to one of yours and press Q to pick them up.</p>`;
   } else if(M.kind === 'bob'){
-    const line = inHub() ? '"I zip over to the Hub whenever you\'re here! I can build you a cottage back on Starter Island — then fancy it up."'
+    const line = inHub() ? '"Hey, remember me? Builder Bazaar is my boss. I can still build you a home back on Starter Island!"'
       : (!bridge1.done && !bridge1.active) ? `"Bring me 20 cobblestone and I'll build a bridge to the next island — you have ${Math.min(countItem('stone'), 20)}/20. I can also build you a cottage!"` : '"Need a place to live? I\'ll build you a cottage right next to my spot, then add furniture."';
     h += `<h2>Builder Bob</h2><p class="sub">${line}</p>${pills}<h3>Crafting</h3><div class="rows">${row(ic('chest'), 'Chest', `Turn 4 wood into a chest you can place anywhere · you have ${countItem('wood')} wood`, btn('Craft · 4 Wood', 'craftChest', {}, 'alt', countItem('wood') < 4))}</div>`;
     const allLinked = !!mainland;
-    h += `<h3>Big projects</h3><div class="rows">${row(`<span class="swatch" style="background:#8a5a2a"></span>`, 'Island Fences', 'Wooden fences around the edge of every island so you can\'t fall off. Gaps are left where bridges connect.', project.fences ? btn('Built', 'noop', {}, '', true) : btn(`Build · ${money(500)}`, 'project', { id: 'fences' }, 'alt', S.money < 500))}${row(`<span class="swatch" style="background:#8b8e91"></span>`, 'Connect All Islands', 'Fills in all the gaps so Starter Island, Pond Island and Worker Island become one big island.', allLinked ? btn('Built', 'noop', {}, '', true) : btn(`Build · ${money(2000)}`, 'project', { id: 'connect' }, 'alt', S.money < 2000))}</div>`;
-    h += `<h3>Your house on Starter Island</h3><div class="rows">${HOUSE_UPGRADES.map(u => { const done = house.has[u.id], locked = u.id !== 'house' && !house.has.house; return row(`<span class="swatch" style="background:${done ? '#2f8f5b' : 'rgba(255,255,255,0.1)'};display:grid;place-items:center;font-weight:900">${done ? '✓' : ''}</span>`, u.name, u.desc, done ? btn('Built', 'noop', {}, '', true) : locked ? btn('Build the cottage first', 'noop', {}, '', true) : btn(`Build · ${money(u.cost)}`, 'house', { id: u.id }, 'alt', S.money < u.cost)); }).join('')}</div>`;
+    h += `<h3>Big projects</h3><div class="rows">${row(`<span class="swatch" style="background:#8a5a2a"></span>`, 'Island Fences', 'Wooden fences around the edge of every island so you can\'t fall off. Gaps are left where bridges connect.', project.fences ? btn('Built', 'noop', {}, '', true) : btn(`Build · ${money(500)}`, 'project', { id: 'fences' }, 'alt', S.money < 500))}${row(`<span class="swatch" style="background:#8b8e91"></span>`, 'Connect All Islands', 'Fills in all the gaps so Starter Island, Pond Island and Worker Island become one big island. The bridges come down because you don\'t need them any more.', allLinked ? btn('Built', 'noop', {}, '', true) : btn(`Build · ${money(2000)}`, 'project', { id: 'connect' }, 'alt', S.money < 2000))}</div>`;
+    const homeRows = list => list.map(u => { const done = house.has[u.id], locked = u.furn && !house.has.house; return row(`<span class="swatch" style="background:${done ? '#2f8f5b' : 'rgba(255,255,255,0.1)'};display:grid;place-items:center;font-weight:900">${done ? '✓' : ''}</span>`, u.name, u.desc, done ? btn('Built', 'noop', {}, '', true) : locked ? btn('Build the cottage first', 'noop', {}, '', true) : btn(`Build · ${money(u.cost)}`, 'house', { id: u.id }, 'alt', S.money < u.cost)); }).join('');
+    h += `<h3>Homes on Starter Island</h3><div class="rows">${homeRows(HOUSE_UPGRADES.filter(u => !u.furn))}</div><h3>Cottage furniture</h3><div class="rows">${homeRows(HOUSE_UPGRADES.filter(u => u.furn))}</div>`;
   }
   h += `<div class="mmsg ${M.err ? 'err' : ''}" role="status">${M.msg}</div>`;
   const card = $('menu').querySelector('.menu-card'), st = card.scrollTop;
@@ -3942,14 +4313,14 @@ function menuAction(act, ds){
       if(project[ds.id]) break; if(cost > S.money){ need(cost); break; }
       S.money -= cost; project[ds.id] = true; sfx('coin'); sfx('build');
       if(ds.id === 'fences'){ buildFences(true); menuMsg('Fences are up around every island! You can only step off where a bridge is.'); }
-      else { connectIslands(); menuMsg('Done! All your islands are now one big island.'); }
+      else { connectIslands(); menuMsg('Done! All your islands are now one big island, and the bridges are gone.'); }
       break;
     }
     case 'house': {
       const u = HOUSE_UPGRADES.find(x => x.id === ds.id); if(!u || house.has[u.id]) break;
       if(u.cost > S.money){ need(u.cost); break; }
       S.money -= u.cost; house.has[u.id] = true; buildHouseUpgrade(u.id); sfx('build'); sfx('coin');
-      menuMsg(u.id === 'house' ? 'Your cottage is up — it\'s in the inside corner of the L on Starter Island!' : `${u.name} added to your cottage!`);
+      menuMsg(u.id === 'house' ? 'Your cottage is up — it\'s in the inside corner of the L on Starter Island!' : u.id === 'house2' ? 'Your house is up — right next to the cottage spot on Starter Island!' : u.id === 'mansion' ? 'Your mansion is finished! It\'s behind the houses on Starter Island — take the grand staircase upstairs.' : `${u.name} added to your cottage!`);
       break;
     }
   }
@@ -3978,6 +4349,7 @@ addEventListener('keydown', e => {
   if(e.code === 'Space') spaceAction();
   if(e.code === 'KeyF') useItem();
   if(e.code === 'KeyN') eat();
+  if(e.code === 'KeyT') throwAxe();
   if(e.code === 'KeyM'){ S.money += 100; popup('+$100', P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); }
   if(e.code === 'KeyR'){ if(buildMode()) placeAtCursor(); else placeWorker(); }
   if(e.code === 'KeyQ') pickUpWorker();
@@ -4029,6 +4401,7 @@ const swing = { t: -1, dur: 0.55, hit: false, onHit: null };
 function startSwing(onHit){ if(swing.t >= 0) return false; swing.dur = 0.55 / (1 + 0.2*selEnch('efficiency')); swing.t = 0; swing.hit = false; swing.onHit = onHit; return true; }
 function faceTo(x, z){ P.yaw = Math.atan2(x - P.pos.x, z - P.pos.z); }
 const d2 = (x, z) => Math.hypot(x - P.pos.x, z - P.pos.z);
+const swordReach = () => isSword(selKey()) ? 0.5 * (custom.len[selKey()] || 0) : 0; // longer blades (from Builder Bill) hit from farther away
 const inFront = (x, z, maxD) => { const dx = x - P.pos.x, dz = z - P.pos.z, d = Math.hypot(dx, dz); return d < maxD && (d < 0.8 || (dx*Math.sin(P.yaw) + dz*Math.cos(P.yaw)) / d > 0.2); };
 let target = null;
 function findTarget(){
@@ -4044,7 +4417,7 @@ function findTarget(){
   for(const B of bushes) if(B.alive && inFront(B.x, B.z, B.s + 1.1)) c.push({ type: 'bush', ref: B, d: d2(B.x, B.z) - B.s + 0.1 });
   const ey = P.pos.y + 1.0, fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
   const reach = (x, y, z) => { const dx = x - P.pos.x, dy = y - ey, dz = z - P.pos.z, h = Math.hypot(dx, dz) || 1; return Math.hypot(dx, dy, dz) - (dx*fx + dz*fz)/h * 0.4; };
-  for(const b of placed){ if(b.y + 1 <= P.pos.y + 0.05 && Math.abs(b.x - P.pos.x) < 0.8 && Math.abs(b.z - P.pos.z) < 0.8) continue; const d = reach(b.x, b.y + 0.5, b.z); if(d < 2.3) c.push({ type: 'block', ref: b, d: d + 0.3 }); }
+  for(const b of placed){ if(b.y + BS <= P.pos.y + 0.05 && Math.abs(b.x - P.pos.x) < 0.8 && Math.abs(b.z - P.pos.z) < 0.8) continue; const d = reach(b.x, b.y + BS/2, b.z); if(d < 2.3) c.push({ type: 'block', ref: b, d: d + 0.3 }); }
   for(const w of wools) if(w.alive){ if(w.y + 0.5 <= P.pos.y + 0.05 && Math.abs(w.x - P.pos.x) < 0.8 && Math.abs(w.z - P.pos.z) < 0.8) continue; const d = reach(w.x, w.y, w.z); if(d < 2.5) c.push({ type: 'wool', ref: w, d }); }
   for(const f of TARGETERS) f(c);
   if(!c.length && selKey() === 'pick'){ const s = digSpot(); if(s) c.push({ type: 'dig', ref: s, d: 9 }); }
@@ -4067,12 +4440,12 @@ function promptFor(t){
   if(!t) return extra.length ? extra : null;
   switch(t.type){
     case 'chest': return [['E', chest.opened ? 'Open storage' : 'Open chest'], ...extra];
-    case 'tree': return [has('axe') ? ['Click / Space', 'Chop down tree'] : [null, 'You need an axe'], ...extra];
+    case 'tree': return [hasAxe() ? ['Click / Space', 'Chop down tree'] : [null, 'You need an axe'], ...extra];
     case 'hump': return [has('pick') ? ['Click', `Mine stone (${t.ref.count} left)`] : [null, 'You need a pickaxe'], ...extra];
     case 'npc': return [['E', `Talk to ${t.ref.name}`], ...(isSword(k) ? [['Click', 'Attack']] : []), ...extra];
     case 'pool': return [['E', 'Drink water'], ...extra];
     case 'door': return [['E', t.ref.open ? 'Close door' : 'Open door'], ...extra];
-    case 'block': return t.ref.key === 'chest' ? [['E', 'Open chest'], ['Click', 'Pick up chest']] : [['Click', `Break ${ITEMS[t.ref.key].name}`], ...extra];
+    case 'block': return ITEMS[t.ref.key].skill ? [['Click / E', `Read ${ITEMS[t.ref.key].name}`], ['Right-click', 'Pick it up']] : t.ref.key === 'chest' ? [['E', 'Open chest'], ['Click', 'Pick up chest']] : [['Click', `Break ${ITEMS[t.ref.key].name}`], ...extra];
     case 'wool': return [['Click', 'Knock off wool'], ...extra];
     case 'animal': return [['Click', isSword(k) ? `Attack ${ANIMAL[t.ref.type].name}` : `Punch ${ANIMAL[t.ref.type].name}`], ...extra];
     case 'bush': return [['Click', 'Pick bush'], ...extra];
@@ -4094,16 +4467,17 @@ function interact(){
   if(plow.riding){ setPlow(false); return; }
   const t = target; if(!t) return;
   if(t.type === 'chest'){ if(chest.opened) openInventory(chestStore); else openChest(); }
-  else if(t.type === 'npc'){ if(t.ref.menu) openMenu(t.ref.menu, t.ref); else talk(t.ref); }
+  else if(t.type === 'npc'){ if(t.ref.line) say(t.ref.name, t.ref.line, t.ref); else if(t.ref.menu) openMenu(t.ref.menu, t.ref); else talk(t.ref); }
   else if(t.type === 'pool'){ S.thirst = 100; sfx('drink'); burst(V3(POOL.x + (P.pos.x-POOL.x)*0.8, 0, POOL.z + (P.pos.z-POOL.z)*0.8), 0x9ad8ff, 10, { up: 0.7, spread: 1 }); popup('Thirst refilled!', P.pos.clone().add(V3(0, 2.2, 0)), '#7fd0ff'); faceTo(POOL.x, POOL.z); }
   else if(t.type === 'worker') collectWorker(t.ref);
   else if(t.type === 'door'){ t.ref.open = !t.ref.open; t.ref.far = 0; sfx('door'); }
+  else if(t.type === 'block' && ITEMS[t.ref.key].skill) openMenu('skilltips', { skill: ITEMS[t.ref.key].skill, block: t.ref });
   else if(t.type === 'block' && t.ref.key === 'chest') openInventory({ name: 'Chest', storage: t.ref.storage });
   else if(t.type === 'tree') spaceAction();
   else if(INTERACT[t.type]) INTERACT[t.type](t);
 }
 function spaceAction(){
-  if(target && target.type === 'tree' && has('axe')){ chop(target.ref); return; }
+  if(target && target.type === 'tree' && hasAxe()){ chop(target.ref); return; }
   if(target && target.type === 'ctree'){ MINE_FN.ctree(target); return; }
   if(plow.riding || isFrozen()) return;
   if(P.swimming){ P.vel.y = 5; return; }
@@ -4116,15 +4490,15 @@ function useItem(){ // left click
   const k = selKey();
   if(fishing.state !== 'none'){ reelIn(); return; }
   if(k === 'rod'){ castLine(); return; }
-  if(isSword(k) || (target && target.type === 'animal') || ATTACKABLE.some(f => f().some(a => inFront(a.x, a.z, 2.6) && Math.abs((a.y ?? 0) - P.pos.y) < 2.2))){ attack(); return; }
+  if(isSword(k) || (target && target.type === 'animal') || ATTACKABLE.some(f => f().some(a => inFront(a.x, a.z, 2.6 + swordReach()) && Math.abs((a.y ?? 0) - P.pos.y) < 2.2))){ attack(); return; }
   tryMine();
 }
 function attack(){
-  const sword = isSword(selKey());
-  let best = null, bd = 9;
-  for(const A of animals) if(A.alive && inFront(A.x, A.z, 2.4)){ const d = d2(A.x, A.z); if(d < bd){ bd = d; best = { A }; } }
-  if(sword) for(const n of allNPCs()) if(!n.dead && inFront(n.pos.x, n.pos.z, 2.4)){ const d = d2(n.pos.x, n.pos.z); if(d < bd){ bd = d; best = { n }; } }
-  for(const f of ATTACKABLE) for(const a of f()) if(inFront(a.x, a.z, 2.6) && Math.abs((a.y ?? 0) - P.pos.y) < 2.2){ const d = d2(a.x, a.z); if(d < bd){ bd = d; best = { X: a }; } }
+  const sword = isSword(selKey()) || selKey() === 'throw_axe', reach = swordReach();
+  let best = null, bd = 99;
+  for(const A of animals) if(A.alive && inFront(A.x, A.z, 2.4 + reach)){ const d = d2(A.x, A.z); if(d < bd){ bd = d; best = { A }; } }
+  if(sword) for(const n of allNPCs()) if(!n.dead && inFront(n.pos.x, n.pos.z, 2.4 + reach)){ const d = d2(n.pos.x, n.pos.z); if(d < bd){ bd = d; best = { n }; } }
+  for(const f of ATTACKABLE) for(const a of f()) if(inFront(a.x, a.z, 2.6 + reach) && Math.abs((a.y ?? 0) - P.pos.y) < 2.2){ const d = d2(a.x, a.z); if(d < bd){ bd = d; best = { X: a }; } }
   if(best) faceTo(best.A ? best.A.x : best.X ? best.X.x : best.n.pos.x, best.A ? best.A.z : best.X ? best.X.z : best.n.pos.z);
   startSwing(() => { if(!best){ sfx('cast'); return; } if(best.X) best.X.hit(playerDamage()); else if(best.A){ hitAnimal(best.A, sword ? 2 : 1); if(!best.A.alive) skillXP('combat', 8); } else hitNPC(best.n); });
 }
@@ -4142,6 +4516,7 @@ function eat(){
 function tryMine(){
   if(!target || S.menu) return;
   if(MINE_FN[target.type]){ MINE_FN[target.type](target); return; }
+  if(target.type === 'block' && ITEMS[target.ref.key].skill){ const b = target.ref; faceTo(b.x, b.z); startSwing(() => { if(!placed.includes(b)) return; sfx('hit'); burst(V3(b.x, b.y + BS, b.z), ITEMS[b.key].color, 8, { up: 0.7 }); openMenu('skilltips', { skill: ITEMS[b.key].skill, block: b }); }); return; }
   if(target.type === 'block'){ const b = target.ref; faceTo(b.x, b.z); startSwing(() => { if(placed.includes(b)) takeBlock(b); renderHotbar(); }); return; }
   if(target.type === 'bush'){
     const B = target.ref; if(spaceFor('bush') < 1){ fullWarn(); return; } faceTo(B.x, B.z);
@@ -4149,7 +4524,7 @@ function tryMine(){
     return;
   }
   if(target.type === 'dig'){ dig(target.ref); return; }
-  if(target.type === 'tree'){ if(has('axe')) chop(target.ref); else say('Hint', 'You need an axe to chop trees. Toolsmith Toby sells them.'); return; }
+  if(target.type === 'tree'){ if(hasAxe()) chop(target.ref); else say('Hint', 'You need an axe to chop trees. Toolsmith Toby sells them.'); return; }
   if(target.type === 'wool'){
     const w = target.ref; faceTo(w.x, w.z);
     startSwing(() => {
@@ -4170,18 +4545,22 @@ function tryMine(){
     const hp = V3(h.x, 0.5, h.z);
     burst(hp, 0x8b8e91, 12, { size: 1.2 }); burst(hp, 0x5f6266, 5);
     sfx('mine'); popup('+1 Cobblestone', hp.clone().add(V3(0, 0.6, 0)));
-    if(h.count === 0){ h.regrowAt = clock.elapsedTime + 60; h.mesh.visible = false; burst(hp, 0x9a9da0, 20, { size: 1.6, up: 1.3 }); }
+    if(h.count === 0){ h.regrowAt = clock.elapsedTime + 60; h.mesh.visible = false; { const wi = walkables.indexOf(h.mesh); if(wi >= 0) walkables.splice(wi, 1); } burst(hp, 0x9a9da0, 20, { size: 1.6, up: 1.3 }); }
   });
 }
+const isAxe = k => k === 'axe' || k === 'throw_axe';
+const hasAxe = () => has('axe') || has('throw_axe');
+const equipAxe = () => isAxe(selKey()) || equip('axe') || equip('throw_axe');
+function fellTree(tr, dx, dz){ // knock a tree over, away from (dx, dz)
+  const L = Math.hypot(dx, dz) || 1;
+  sfx('chop'); burst(V3(tr.x, 0.9, tr.z), 0x7a5230, 12, { size: 1.1 });
+  tr.falling = true; tr.fallT = 0; tr.thudded = false;
+  tr.axis.set(dz/L, 0, -dx/L); tr.fallDir = V3(dx/L, 0, dz/L);
+  tr.standing = false;
+}
 function chop(tr){
-  equip('axe'); faceTo(tr.x, tr.z);
-  startSwing(() => {
-    sfx('chop'); burst(V3(tr.x, 0.9, tr.z), 0x7a5230, 12, { size: 1.1 });
-    tr.falling = true; tr.fallT = 0; tr.thudded = false;
-    const dx = tr.x - P.pos.x, dz = tr.z - P.pos.z, L = Math.hypot(dx, dz) || 1;
-    tr.axis.set(dz/L, 0, -dx/L); tr.fallDir = V3(dx/L, 0, dz/L);
-    tr.standing = false;
-  });
+  equipAxe(); faceTo(tr.x, tr.z);
+  startSwing(() => fellTree(tr, tr.x - P.pos.x, tr.z - P.pos.z));
 }
 function openChest(){
   if(chest.opened) return;
@@ -4202,12 +4581,10 @@ function talk(n){
   if(n === bob){
     if(!inHub() && !bridge1.done && !bridge1.active && countItem('stone') >= 20){ removeItem('stone', 20); renderHotbar(); startBridge(bridge1, n); say(n.name, '20 cobblestone — perfect! Stand back, I\'ll build you that bridge to the next island.', n); popup('-20 Cobblestone', P.pos.clone().add(V3(0, 2.2, 0)), '#ffb3b3'); }
     else if(bridge1.active) say(n.name, 'Hammering away… nearly there! Talk to me again when the bridge is done.', n);
+    else if(inHub() && !S.bobHubHi){ S.bobHubHi = true; say(n.name, 'Hey, remember me? Builder Bazaar is my boss.', n); } // the first time you find him in the Builder's House
     else openMenu('bob', n);
   } else {
-    if(bridge2.done) say(n.name, 'Say hi to the Stone Worker for me! And that portal? It goes to the Hub — the bank, the Builder\'s House and the Merchants Hall.', n);
-    else if(bridge2.active) say(n.name, 'Working on it!', n);
-    else if(countItem('stone') >= 10){ removeItem('stone', 10); renderHotbar(); startBridge(bridge2, n); say(n.name, '10 cobblestone, thanks! One bridge to Worker Island, coming right up.', n); popup('-10 Cobblestone', P.pos.clone().add(V3(0, 2.2, 0)), '#ffb3b3'); }
-    else say(n.name, `Name's Bill. Bring me 10 cobblestone and I'll bridge you over to that little island — there's a Stone Worker there who mines for you. You have ${countItem('stone')}/10. Swim in the pond while you're here!`, n);
+    openMenu('bill', n);
   }
 }
 function startBridge(br, npc){ br.active = true; br.t = 0; br.npc = npc; npc.building = true; if(fence.built) buildFences(false); }
@@ -4303,6 +4680,7 @@ function updatePlayer(dt){
   const mv = fwd.multiplyScalar(f).add(right.multiplyScalar(r));
   if(mv.lengthSq() > 0) mv.normalize();
   P.crouch = !!keys.ShiftRight && !P.swimming && !S.dead && !S.menu;
+  P.block = P.crouch && has('shield'); // Right Shift raises your shield (you still won't step off edges)
   const speed = (P.swimming ? 2.6 : plow.riding ? (plow.superP ? 10.5 : 3.2) : P.crouch ? 2.0 : (keys.ShiftLeft ? 7.4 : 4.6)) * (fxOn('speed') ? 1.5 : 1);
   const k = 1 - Math.exp(-dt * (P.grounded || P.swimming ? 12 : 3));
   P.vel.x += (mv.x * speed - P.vel.x) * k; P.vel.z += (mv.z * speed - P.vel.z) * k;
@@ -4449,7 +4827,7 @@ function updateStats(dt){
   S.health = Math.max(0, S.health - dt * hd);
   if(S.health <= 0) die(S.thirst <= 0 ? 'You died of thirst.' : S.hunger <= 0 ? 'You starved.' : 'You ran out of health.');
   // hail stings a little when you're out in it
-  if(hail.visible && wx.hail > 0.5){ hailHurt -= dt; if(hailHurt <= 0){ hailHurt = R(1.6, 2.6); S.health = Math.max(0, S.health - 1); popup('-1 hail', P.pos.clone().add(V3(0, 2.3, 0)), '#cfe8ff'); if(S.health <= 0) die('The hail got you. Find shelter next time!'); } }
+  if(hail.visible && wx.hail > 0.5 && !P.block){ hailHurt -= dt; if(hailHurt <= 0){ hailHurt = R(1.6, 2.6); S.health = Math.max(0, S.health - 1); popup('-1 hail', P.pos.clone().add(V3(0, 2.3, 0)), '#cfe8ff'); if(S.health <= 0) die('The hail got you. Find shelter next time!'); } }
 }
 function updateFlags(){
   if(bridge1.done && !F.island2 && P.grounded && pointInPoly(P.pos.x, P.pos.z, island2.poly) && distToPoly(P.pos.x, P.pos.z, island2.poly) > 1.2) F.island2 = true;
@@ -4582,7 +4960,7 @@ function frame(){
     if(!S.dead && !S.invOpen && !S.menu) updateStats(dt);
     updateFlags(); checkObjectives();
   }
-  animateHuman(player, { speed: P.speed, grounded: P.grounded, swimming: P.swimming, swing: swing.t, holding: !!S.equipped || handBlock.visible, sword: isSword(selKey()) && swing.t < 0, crouch: P.crouch, sit: plow.riding, flip: P.flipT ?? -1, fishing: fishing.state !== 'none' }, dt);
+  animateHuman(player, { speed: P.speed, grounded: P.grounded, swimming: P.swimming, swing: swing.t, holding: !!S.equipped || handBlock.visible, sword: isSword(selKey()) && swing.t < 0, crouch: P.crouch && !P.block, block: P.block, sit: plow.riding, flip: P.flipT ?? -1, fishing: fishing.state !== 'none' }, dt);
   if(active) for(const f of UPDATERS) f(dt, now);
   updateTrees(dt, now); updateNPCs(dt); updateWorkers(dt); updateHub(dt, now); updateAnimals(dt); updateNPCCombat(dt); updateFishing(dt); updateGhost(); regrowGrass(); regrowHumps(); growMainland(dt); updateMisc(dt, now);
   updateClouds(dt); updateParticles(dt); updatePopups(dt); updateSkyCycle(dt);
