@@ -268,11 +268,11 @@
       <div><kbd>Click</kbd> Place (holding a block)</div>
       <div><kbd>E</kbd> Open / talk / drink</div>
       <div><kbd>1</kbd>–<kbd>8</kbd> Hotbar slot</div>
-      <div><kbd>Space</kbd>×2 Backflip</div>
+      <div><kbd>Space</kbd>×2 Backflip · ×3 front flip</div>
       <div><kbd>N</kbd> Eat food</div>
       <div><kbd>M</kbd> Get $100</div>
-      <div><kbd>← →</kbd> Sword swipes (holding a sword)</div>
-      <div><kbd>↑</kbd> Jab · <kbd>↓</kbd> Slam</div>
+      <div><kbd>A</kbd> / <kbd>D</kbd> Sword swipes (holding a sword)</div>
+      <div><kbd>W</kbd> Jab · <kbd>S</kbd> Slam · arrows walk</div>
       <div><kbd>N</kbd> / <kbd>M</kbd> One hand / two hands (holding a sword)</div>
       <div><kbd>V</kbd> First person / third person</div>
       <div><kbd>Q</kbd> Pick up worker</div>
@@ -833,6 +833,140 @@ const island2 = makeIsland({ poly: blobPoly(I2C.x, I2C.z, r2), holes: [circlePol
 const island3 = makeIsland({ poly: blobPoly(I3C.x, I3C.z, r3), name: 'Worker Island', depth: 0.9, grassAvoid: [
   { x: B2.b.x, z: B2.b.z, r: 1.6 }, { x: WORKER_POS.x, z: WORKER_POS.z, r: 1.9 } ] });
 
+// ---------------------------------------------------------------- props: trees
+// Real-looking trees: a knobbly trunk with flared roots and branches reaching into the crown, and a crown made of
+// hundreds of little leaf cards (cut out of a leaf texture) around a dense core, shaded darker on the inside.
+// leaf outlines, drawn centred on the origin, tip pointing up; s = half the length
+const LEAF_SHAPES = {
+  oak(g, s){ g.beginPath(); g.moveTo(0, -s); for(let i=1;i<=20;i++){ const t = i/20, w = s*0.46*Math.sin(Math.PI*t)*(0.72 + 0.28*Math.cos(t*Math.PI*9)); g.lineTo(w, -s + 2*s*t); } for(let i=20;i>=0;i--){ const t = i/20, w = s*0.46*Math.sin(Math.PI*t)*(0.72 + 0.28*Math.cos(t*Math.PI*9)); g.lineTo(-w, -s + 2*s*t); } g.fill(); },
+  birch(g, s){ g.beginPath(); g.moveTo(0, -s); for(let i=1;i<=24;i++){ const t = i/24, w = s*0.5*Math.pow(Math.sin(Math.PI*Math.pow(t, 0.8)), 0.9)*(1 + 0.07*Math.sin(t*44)); g.lineTo(w, -s + 2*s*t); } for(let i=24;i>=0;i--){ const t = i/24, w = s*0.5*Math.pow(Math.sin(Math.PI*Math.pow(t, 0.8)), 0.9)*(1 + 0.07*Math.sin(t*44)); g.lineTo(-w, -s + 2*s*t); } g.fill(); },
+  maple(g, s){ g.beginPath(); for(let i=0;i<=60;i++){ const a = -Math.PI/2 + i/60*Math.PI*2, k = Math.abs(Math.cos(a*2.5 + Math.PI*1.25)), r = s*(0.42 + 0.58*Math.pow(k, 3)) * (Math.sin(a) > 0.75 ? 0.45 : 1); i ? g.lineTo(Math.cos(a)*r, Math.sin(a)*r) : g.moveTo(Math.cos(a)*r, Math.sin(a)*r); } g.fill(); g.fillRect(-s*0.04, s*0.3, s*0.08, s*0.7); },
+  acacia(g, s){ g.fillRect(-s*0.03, -s, s*0.06, s*2); for(let i=0;i<8;i++){ const y = -s*0.85 + i*s*0.24; for(const d of [-1, 1]){ g.beginPath(); g.ellipse(d*s*0.16, y, s*0.13, s*0.06, d*0.35, 0, 7); g.fill(); } } },
+  jungle(g, s){ g.beginPath(); g.moveTo(0, -s); for(let i=1;i<=20;i++){ const t = i/20, w = s*0.58*Math.pow(Math.sin(Math.PI*t), 0.6); g.lineTo(w, -s + 2*s*t); } for(let i=20;i>=0;i--){ const t = i/20, w = s*0.58*Math.pow(Math.sin(Math.PI*t), 0.6); g.lineTo(-w, -s + 2*s*t); } g.fill(); },
+  willow(g, s){ g.beginPath(); g.moveTo(0, -s); for(let i=1;i<=16;i++){ const t = i/16; g.lineTo(s*0.15*Math.sin(Math.PI*t), -s + 2*s*t); } for(let i=16;i>=0;i--){ const t = i/16; g.lineTo(-s*0.15*Math.sin(Math.PI*t), -s + 2*s*t); } g.fill(); },
+};
+function drawLeaf(g, kind, x, y, s, ang, fill, vein){ g.save(); g.translate(x, y); g.rotate(ang); g.fillStyle = fill; LEAF_SHAPES[kind](g, s);
+  if(vein && kind !== 'acacia'){ g.strokeStyle = vein; g.lineWidth = Math.max(0.8, s*0.06); g.beginPath(); g.moveTo(0, -s*0.85); g.lineTo(0, s*1.1); g.stroke();
+    if(kind === 'jungle' || kind === 'oak'){ g.lineWidth = Math.max(0.6, s*0.035); for(let i=1;i<5;i++){ const yy = -s + i*s*0.4; for(const d of [-1, 1]){ g.beginPath(); g.moveTo(0, yy); g.lineTo(d*s*0.32, yy - s*0.18); g.stroke(); } } } }
+  g.restore(); }
+function speciesLeafTex(kind, count, smin, smax){ const c = leafCanvas(g => { for(let i=0;i<count;i++){ const L = R(58, 96), sz = R(smin, smax); drawLeaf(g, kind, R(sz, 256 - sz), R(sz, 256 - sz), sz, R(0, 6.28), `hsl(0,0%,${L}%)`, `hsla(0,0%,${L - 24}%,0.85)`); } });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
+function leafCanvas(draw){ const c = makeCanvas(256), g = c.getContext('2d'); g.clearRect(0, 0, 256, 256); draw(g); return c; }
+const LEAF_TEX = (() => { const c = leafCanvas(g => {
+  for(let i=0;i<95;i++){ const x = R(16, 240), y = R(16, 240), h = R(9, 17), w = h*R(0.45, 0.6), L = R(58, 96);
+    g.save(); g.translate(x, y); g.rotate(R(0, 6.28));
+    g.fillStyle = `hsl(0,0%,${L}%)`; g.beginPath(); g.moveTo(0, -h); g.quadraticCurveTo(w, -h*0.15, 0, h); g.quadraticCurveTo(-w, -h*0.15, 0, -h); g.fill();
+    g.strokeStyle = `hsla(0,0%,${L - 22}%,0.8)`; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -h*0.9); g.lineTo(0, h*1.25); g.stroke(); g.restore(); }
+}); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
+const NEEDLE_TEX = (() => { const c = leafCanvas(g => { // a fir branch: a twig with needles all along it
+  for(let b=0;b<5;b++){ const y0 = 30 + b*48; g.strokeStyle = 'hsl(0,0%,45%)'; g.lineWidth = 3; g.beginPath(); g.moveTo(4, y0); g.lineTo(252, y0 + R(-6, 6)); g.stroke();
+    for(let x=6;x<250;x+=3){ for(const s of [-1, 1]){ const L = R(55, 90), len = R(9, 16) * (1 - x/400); g.strokeStyle = `hsl(0,0%,${L}%)`; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y0); g.lineTo(x + len*0.55, y0 + s*len); g.stroke(); } } }
+}); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
+const STRAND_TEX = (() => { const c = leafCanvas(g => { // willow: thin hanging strands covered in narrow leaves
+  for(let k=0;k<7;k++){ const x0 = 18 + k*36; g.strokeStyle = 'hsl(0,0%,50%)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x0, 0); g.quadraticCurveTo(x0 + R(-8, 8), 128, x0 + R(-6, 6), 256); g.stroke();
+    for(let y=4;y<252;y+=5){ const L = R(60, 95), s = Math.random() < 0.5 ? -1 : 1; g.fillStyle = `hsl(0,0%,${L}%)`; g.save(); g.translate(x0 + Math.sin(y*0.02)*4, y); g.rotate(s*R(0.3, 0.7)); g.beginPath(); g.ellipse(s*4, 3, 2.2, 6, 0, 0, 7); g.fill(); g.restore(); } }
+}); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
+const leafMat = (color, map = LEAF_TEX) => { const m = new THREE.MeshStandardMaterial({ map, color, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.8, vertexColors: true, emissive: new THREE.Color(color).multiplyScalar(0.08) });
+  // both sides of a leaf card use the crown's outward normal, so the back of a card isn't drawn dark
+  m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', '')); };
+  return m; };
+const coreMat = color => new THREE.MeshStandardMaterial({ map: tex(C.leaves, 2), color: new THREE.Color(color).multiplyScalar(0.78), roughness: 0.95 });
+// a flat cloud of leaf cards: each card is a quad; normals point out from the crown centre so the whole crown shades like one soft shape
+function cardCloud(cards){
+  const pos = [], nor = [], uv = [], col = [], q = new THREE.Quaternion(), e = new THREE.Euler(), corner = V3(), n = V3();
+  for(const c of cards){
+    if(c.quat) q.copy(c.quat); else q.setFromEuler(e.set(R(0, 6.28), R(0, 6.28), R(0, 6.28)));
+    const hw = c.w/2, hh = c.h/2, u0 = c.u0 ?? (Math.random() < 0.5 ? 0 : 0.5), v0 = c.v0 ?? (Math.random() < 0.5 ? 0 : 0.5), us = c.us ?? 0.5, vs = c.vs ?? 0.5;
+    const pts = [[-hw, -hh, u0, v0], [hw, -hh, u0 + us, v0], [hw, hh, u0 + us, v0 + vs], [-hw, hh, u0, v0 + vs]];
+    n.copy(c.n).normalize();
+    for(const i of [0, 1, 2, 0, 2, 3]){ const [x, y, u, v] = pts[i]; corner.set(x, y, 0).applyQuaternion(q).add(c.p); pos.push(corner.x, corner.y, corner.z); nor.push(n.x, n.y, n.z); uv.push(u, v); col.push(c.c[0], c.c[1], c.c[2]); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+// leaf cards scattered through round clusters; darker deep inside and underneath, brighter on top
+function crownCards(clusters, o = {}){
+  const cards = [], tints = o.tints || [[1, 1, 1]], size = o.size || 0.85, density = o.density || 34, sy = o.sy ?? 0.88;
+  let top = -Infinity, bot = Infinity; for(const [, y, , r] of clusters){ top = Math.max(top, y + r*sy); bot = Math.min(bot, y - r*sy); }
+  for(const [cx, cy, cz, r] of clusters){
+    const N = Math.round(r*r*density);
+    for(let i=0;i<N;i++){
+      const th = R(0, 6.28), ph = Math.acos(R(-1, 1)), d = r*Math.pow(R(0.35, 1), 0.5), dx = Math.sin(ph)*Math.cos(th), dy = Math.cos(ph), dz = Math.sin(ph)*Math.sin(th);
+      const p = V3(cx + dx*d, cy + dy*d*sy, cz + dz*d), depth = d/r, hgt = (p.y - bot)/Math.max(0.1, top - bot);
+      const shade = (0.62 + 0.3*depth + 0.25*hgt) * R(0.88, 1.1), t = pick(tints);
+      const s = size*R(0.75, 1.25);
+      cards.push({ p, n: V3(dx, dy*0.8 + 0.35, dz), w: s, h: s, c: [t[0]*shade, t[1]*shade, t[2]*shade], quat: o.flat ? new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2 + R(-0.35, 0.35), R(0, 6.28), R(-0.35, 0.35), 'YXZ')) : null });
+    }
+  }
+  return cardCloud(cards);
+}
+const coreGeo = (clusters, sy = 0.88) => { const g = mergeGeometries(clusters.map(([x, y, z, r]) => blobGeo(r*0.32, x, y, z, sy, 2))); g.computeVertexNormals(); return g; };
+function blobGeo(r, x, y, z, sy = 0.88, detail = 3){ const g = ico(r, detail); const p = g.attributes.position; for(let i=0;i<p.count;i++){ const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), n = 1 + fbm(vx*1.4 + x*3, vy*1.4 + y, vz*1.4 + z*3)*0.3; p.setXYZ(i, vx*n + x, vy*n*sy + y, vz*n + z); } return g; }
+function trunkGeo(r0, r1, h, bend = 0, roots = 0.5){ const g = new THREE.CylinderGeometry(r0, r1, h, 14, 14); g.translate(0, h/2, 0); const p = g.attributes.position;
+  for(let i=0;i<p.count;i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x), n = 1 + fbm(x*3, y*1.5, z*3)*0.16, f = 1 + Math.max(0, roots - y)/roots*0.65*(0.6 + 0.4*Math.abs(Math.sin(a*2.5))); // root flare with buttresses
+    p.setXYZ(i, x*n*f + bend*(y/h)*(y/h), y, z*n*f); }
+  g.computeVertexNormals(); return g; }
+function branchGeo(from, to, r0, r1){ const d = to.clone().sub(from), L = d.length(), g = new THREE.CylinderGeometry(r1, r0, L, 8, 3); g.translate(0, L/2, 0); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), d.normalize())); g.translate(from.x, from.y, from.z); return g.toNonIndexed(); }
+// woody parts: trunk plus a branch reaching up into each cluster
+function woodGeo(trunk, clusters, h, r0 = 0.07, r1 = 0.13, bend = 0){ const parts = [trunk.toNonIndexed()];
+  for(const [x, y, z, r] of clusters){ if(Math.hypot(x, z) < 0.25) continue; const from = V3(bend*0.8, h*R(0.62, 0.82), 0), to = V3(x*0.8, y - r*0.2, z*0.8); parts.push(branchGeo(from, to, r1, r0)); }
+  const g = mergeGeometries(parts.map(q => { for(const k of Object.keys(q.attributes)) if(!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k); return q; })); g.computeVertexNormals(); return g; }
+const BIRCH_TEX = (() => { const c = makeCanvas(128), g = c.getContext('2d'); g.fillStyle = '#ece8dc'; g.fillRect(0, 0, 128, 128);
+  for(let i=0;i<46;i++){ g.fillStyle = `rgba(30,26,22,${R(0.5, 0.9)})`; g.fillRect(R(0, 128), R(0, 128), R(5, 22), R(1.5, 4)); }
+  pixNoise(g, 128, 14); return tex(c, 1, 2); })();
+const barkMat = color => texMat(C.bark, { color, bumpMap: tex(C.bark, 1), bumpScale: 2 });
+const TREE_KINDS = {
+  oak:    { bark: MAT.bark, leaves: leafMat(0x5f9a3a, speciesLeafTex('oak', 70, 10, 16)), core: coreMat(0x5f9a3a), wood: 'wood' },
+  birch:  { bark: new THREE.MeshStandardMaterial({ map: BIRCH_TEX, roughness: 0.85 }), leaves: leafMat(0xb2dc6a, speciesLeafTex('birch', 110, 6, 10)), core: coreMat(0xa8d468), wood: 'birch_wood' },
+  spruce: { bark: barkMat(0x6a4a34), leaves: leafMat(0x3f6e4c, NEEDLE_TEX), core: coreMat(0x35603f), wood: 'spruce_wood' },
+  acacia: { bark: barkMat(0xb08a70), leaves: leafMat(0x9cb456, speciesLeafTex('acacia', 60, 12, 18)), core: coreMat(0x96ae52), wood: 'acacia_wood' },
+  maple:  { bark: barkMat(0x9a6a4a), leaves: leafMat(0xf0662a, speciesLeafTex('maple', 55, 11, 18)), core: coreMat(0xd8552a), wood: 'maple_wood' },
+  willow: { bark: barkMat(0x8a8068), leaves: leafMat(0x9cc84e, speciesLeafTex('willow', 120, 10, 16)), strands: leafMat(0x94c04a, STRAND_TEX), core: coreMat(0x8cb848), wood: 'willow_wood' },
+  jungle: { bark: barkMat(0xa88a5a), leaves: leafMat(0x5fa034, speciesLeafTex('jungle', 18, 26, 40)), core: coreMat(0x4f9030), wood: 'jungle_wood' },
+};
+function makeTreeModelType(type){
+  const K = TREE_KINDS[type] || TREE_KINDS.oak, group = new THREE.Group(), add = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true; group.add(m); return m; };
+  let foliage;
+  const crown = (clusters, wood, o = {}) => { add(wood, K.bark); foliage = add(crownCards(clusters, { ...o, density: (o.density || 34)*1.35 }), K.leaves); }; // thick enough with leaves alone — no solid ball inside
+  if(type === 'birch'){
+    const cl = [[0, 4.4, 0, 1.0], [0.5, 3.8, 0.3, 0.8], [-0.45, 3.9, -0.25, 0.85], [0.1, 5.1, 0.1, 0.75], [-0.2, 3.4, 0.5, 0.7], [0.35, 4.7, -0.4, 0.65]];
+    crown(cl, woodGeo(trunkGeo(0.13, 0.2, 4.8, 0.15, 0.35), cl, 4.8, 0.04, 0.08), { size: 0.62, sy: 1.25, density: 34, tints: [[1, 1, 1], [1.05, 1.08, 0.85]] });
+  } else if(type === 'spruce'){ // tiers of drooping needle branches all the way up
+    add(trunkGeo(0.15, 0.3, 6.2, 0, 0.4), K.bark);
+    const cards = [], tiers = 10;
+    for(let i=0;i<tiers;i++){ const y = 1.0 + i*0.52, rr = 2.1*(1 - i/tiers) + 0.25, n = Math.round(7 + rr*7);
+      for(let k=0;k<n;k++){ const a = k/n*Math.PI*2 + R(-0.2, 0.2) + i*0.4, len = rr*R(0.85, 1.1), droop = R(0.25, 0.5);
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, -droop, 'YXZ')).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2 + R(-0.2, 0.2), 0, 0)));
+        const shade = (0.7 + 0.4*(i/tiers)) * R(0.88, 1.08);
+        cards.push({ p: V3(Math.cos(a)*len/2, y - Math.sin(droop)*len/2, Math.sin(a)*len/2), n: V3(Math.cos(a), 0.6, Math.sin(a)), w: len, h: R(0.5, 0.75), quat: q, c: [shade, shade, shade], u0: 0, us: 1, v0: Math.floor(R(0, 5))*0.19, vs: 0.19 }); } }
+    const core = new THREE.ConeGeometry(1.25, 5.0, 12, 4); core.translate(0, 3.6, 0); add(core, K.core);
+    foliage = add(cardCloud(cards), K.leaves);
+  } else if(type === 'acacia'){ // leaning trunk and a flat umbrella crown
+    const cl = [[0.9, 3.8, 0, 1.45], [-0.3, 3.65, 0.6, 1.1], [0.2, 3.7, -0.8, 1.15], [-0.95, 3.45, -0.2, 1.0]];
+    crown(cl, woodGeo(trunkGeo(0.15, 0.27, 3.7, 0.9, 0.4), cl, 3.7, 0.05, 0.1, 0.9), { size: 0.75, sy: 0.3, flat: true, density: 22 });
+  } else if(type === 'maple'){ // broad round crown of orange, red and yellow leaves
+    const cl = [[0, 4.2, 0, 1.6], [1.2, 3.7, 0.3, 1.2], [-1.15, 3.8, -0.3, 1.25], [0.2, 5.1, -0.2, 1.15], [-0.3, 3.6, 1.15, 1.1], [0.4, 3.7, -1.2, 1.1]];
+    crown(cl, woodGeo(trunkGeo(0.2, 0.34, 3.7), cl, 3.7, 0.06, 0.12), { size: 0.8, sy: 0.9, tints: [[1, 1, 1], [1, 0.72, 0.55], [1.05, 1.15, 0.6], [0.85, 0.55, 0.45]] });
+  } else if(type === 'willow'){ // short thick trunk, wide crown, and long strands hanging almost to the ground
+    const cl = [[0.3, 3.7, 0, 1.5], [1.3, 3.4, 0.4, 1.05], [-0.9, 3.5, -0.4, 1.15], [0.2, 3.4, 1.2, 0.95], [0.4, 3.4, -1.2, 0.95]];
+    crown(cl, woodGeo(trunkGeo(0.26, 0.44, 3.2, 0.3, 0.55), cl, 3.2, 0.07, 0.14, 0.3), { size: 0.7, sy: 0.6 });
+    const strands = []; for(let i=0;i<34;i++){ const a = i/34*Math.PI*2 + R(-0.08, 0.08), r = R(1.3, 2.3), L = R(1.9, 3.0), sh = R(0.75, 1.05);
+      strands.push({ p: V3(0.3 + Math.cos(a)*r, 3.55 - L/2, Math.sin(a)*r), n: V3(Math.cos(a), 0.2, Math.sin(a)), w: R(0.5, 0.8), h: L, quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(R(-0.08, 0.12), -a + Math.PI/2, 0, 'YXZ')), c: [sh, sh, sh], u0: 0, us: 1, v0: 0, vs: 1 }); }
+    add(cardCloud(strands), K.strands);
+  } else if(type === 'jungle'){ // very tall, buttress roots, big leaves and hanging vines
+    const cl = [[0, 6.6, 0, 1.8], [1.2, 6.1, 0.5, 1.35], [-1.1, 6.2, -0.4, 1.45], [0.3, 7.4, -0.3, 1.25], [-0.4, 5.9, 1.1, 1.15], [0.6, 5.8, -1.2, 1.15]];
+    crown(cl, woodGeo(trunkGeo(0.32, 0.56, 6.8, 0, 0.9), cl, 6.8, 0.08, 0.16), { size: 1.15, sy: 0.8, density: 20 });
+    const vine = new THREE.MeshStandardMaterial({ color: 0x3a7a2a, roughness: 0.9 });
+    for(let i=0;i<9;i++){ const a = R(0, 6.28), r = R(0.9, 2.1), L = R(1.2, 2.8); const v = add(new THREE.CylinderGeometry(0.022, 0.022, L, 4), vine); v.position.set(Math.cos(a)*r, 5.8 - L/2, Math.sin(a)*r); }
+  } else { // oak: a sturdy trunk and a big, lumpy, layered crown
+    const cl = [[0, 3.9, 0, 1.5], [0.95, 3.45, 0.35, 1.1], [-0.9, 3.55, -0.3, 1.15], [0.2, 4.7, -0.2, 1.1], [-0.3, 3.4, 0.95, 1.0], [0.4, 3.5, -1.0, 1.0], [-0.2, 4.4, 0.6, 0.9]];
+    crown(cl, woodGeo(trunkGeo(0.21, 0.34, 3.4, 0.12, 0.6), cl, 3.4, 0.06, 0.12), { size: 0.82, tints: [[1, 1, 1], [0.92, 1.04, 0.85], [1.06, 1.02, 0.9]] });
+  }
+  return { group, foliage };
+}
+function makeTreeModel(scale = 1){ const m = makeTreeModelType('oak'); m.group.scale.setScalar(scale); return m; }
 // distant decorative islets
 for(let i=0;i<6;i++){
   const a = i/6*Math.PI*2 + R(-0.3,0.3), d = R(110, 170);
@@ -842,76 +976,6 @@ for(let i=0;i<6;i++){
   if(rand() < 0.6){ const t = makeTreeModel(1.0); t.group.position.set(cx, 0, cz); isl.group.add(t.group); }
 }
 
-// ---------------------------------------------------------------- props: trees
-function makeTreeModel(scale = 1){
-  const group = new THREE.Group();
-  const trunkG = new THREE.CylinderGeometry(0.2, 0.33, 3.4, 14, 12); trunkG.translate(0, 1.7, 0);
-  const p = trunkG.attributes.position;
-  for(let i=0;i<p.count;i++){ const x=p.getX(i), y=p.getY(i), z=p.getZ(i); const n=1+fbm(x*3,y*1.5,z*3)*0.18; const flare = 1 + Math.max(0, 0.6 - y)*0.55; p.setXYZ(i, x*n*flare + Math.sin(y*0.8)*0.12, y, z*n*flare); }
-  trunkG.computeVertexNormals();
-  const trunk = new THREE.Mesh(trunkG, MAT.bark); trunk.castShadow = true; trunk.receiveShadow = true; group.add(trunk);
-  for(const [ax, rz, ry, len] of [[0.1, 0.75, 0.3, 1.4], [-0.1, -0.7, 2.2, 1.2], [0.05, 0.6, 4.1, 1.1]]){
-    const bg = new THREE.CylinderGeometry(0.06, 0.12, len, 8); bg.translate(0, len/2, 0);
-    const b = new THREE.Mesh(bg, MAT.bark); b.position.set(ax, 2.3 + ry*0.12, 0); b.rotation.set(0, ry, rz); b.castShadow = true; group.add(b);
-  }
-  const blobs = [[0,3.9,0,1.55],[0.95,3.45,0.35,1.15],[-0.9,3.55,-0.3,1.2],[0.2,4.75,-0.2,1.15],[-0.3,3.4,0.95,1.05],[0.4,3.5,-1.0,1.05],[-0.2,4.4,0.6,0.95]];
-  const fGeos = [];
-  for(const [x,y,z,r] of blobs){
-    const g = ico(r, 3);
-    const gp = g.attributes.position;
-    for(let i=0;i<gp.count;i++){ const vx=gp.getX(i), vy=gp.getY(i), vz=gp.getZ(i); const n=1+fbm(vx*1.4+x*3, vy*1.4+y, vz*1.4+z*3)*0.32; gp.setXYZ(i, vx*n + x, vy*n*0.88 + y, vz*n + z); }
-    fGeos.push(g);
-  }
-  const fg = mergeGeometries(fGeos); fg.computeVertexNormals();
-  const foliage = new THREE.Mesh(fg, MAT.leaves); foliage.castShadow = true; foliage.receiveShadow = true; group.add(foliage);
-  group.scale.setScalar(scale);
-  return { group, foliage };
-}
-// ---- tree types: oak (default), birch, spruce, acacia, jungle
-const BIRCH_TEX = (() => { const c = makeCanvas(128), g = c.getContext('2d'); g.fillStyle = '#ece8dc'; g.fillRect(0, 0, 128, 128);
-  for(let i=0;i<46;i++){ g.fillStyle = `rgba(30,26,22,${R(0.5, 0.9)})`; g.fillRect(R(0, 128), R(0, 128), R(5, 22), R(1.5, 4)); }
-  pixNoise(g, 128, 14); return tex(c, 1, 2); })();
-const TREE_KINDS = {
-  birch:  { bark: new THREE.MeshStandardMaterial({ map: BIRCH_TEX, roughness: 0.85 }), leaves: texMat(C.leaves, { color: 0xc8f08a }), wood: 'birch_wood' },
-  spruce: { bark: texMat(C.bark, { color: 0x6a4a34, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.leaves, { color: 0x4a7a5a }), wood: 'spruce_wood' },
-  acacia: { bark: texMat(C.bark, { color: 0xb08a70, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.leaves, { color: 0xa8c060 }), wood: 'acacia_wood' },
-  maple:  { bark: texMat(C.bark, { color: 0x9a6a4a, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.wool, { color: 0xf0661e, roughness: 0.9 }), wood: 'maple_wood' },
-  willow: { bark: texMat(C.bark, { color: 0x8a8068, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.wool, { color: 0x9ccc4a, roughness: 0.9 }), wood: 'willow_wood' },
-  jungle: { bark: texMat(C.bark, { color: 0xa88a5a, bumpMap: tex(C.bark, 1), bumpScale: 2 }), leaves: texMat(C.leaves, { color: 0x6aa83a }), wood: 'jungle_wood' },
-};
-function blobGeo(r, x, y, z, sy = 0.88, detail = 3){ const g = ico(r, detail); const p = g.attributes.position; for(let i=0;i<p.count;i++){ const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), n = 1 + fbm(vx*1.4 + x*3, vy*1.4 + y, vz*1.4 + z*3)*0.3; p.setXYZ(i, vx*n + x, vy*n*sy + y, vz*n + z); } return g; }
-function trunkGeo(r0, r1, h, bend = 0){ const g = new THREE.CylinderGeometry(r0, r1, h, 12, 10); g.translate(0, h/2, 0); const p = g.attributes.position; for(let i=0;i<p.count;i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i), n = 1 + fbm(x*3, y*1.5, z*3)*0.15, f = 1 + Math.max(0, 0.5 - y)*0.5; p.setXYZ(i, x*n*f + bend*(y/h)*(y/h), y, z*n*f); } g.computeVertexNormals(); return g; }
-function makeTreeModelType(type){
-  if(!TREE_KINDS[type]) return makeTreeModel(1);
-  const K = TREE_KINDS[type], group = new THREE.Group(), add = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true; group.add(m); return m; };
-  const leafs = [];
-  if(type === 'birch'){
-    add(trunkGeo(0.14, 0.22, 4.4), K.bark);
-    for(const [x, y, z, r] of [[0, 4.3, 0, 1.15], [0.55, 3.7, 0.3, 0.85], [-0.5, 3.8, -0.25, 0.9], [0.1, 5.0, 0.1, 0.8], [-0.2, 3.3, 0.55, 0.75]]) leafs.push(blobGeo(r, x, y, z, 1.15));
-  } else if(type === 'spruce'){
-    add(trunkGeo(0.16, 0.28, 5.2), K.bark);
-    for(let i=0;i<5;i++){ const g = new THREE.ConeGeometry(1.9 - i*0.33, 1.6, 12, 2); const p = g.attributes.position; for(let k=0;k<p.count;k++){ const x = p.getX(k), z = p.getZ(k), n = 1 + fbm(x*2 + i, p.getY(k)*2, z*2)*0.2; p.setX(k, x*n); p.setZ(k, z*n); } g.translate(0, 1.7 + i*0.95, 0); leafs.push(g); }
-  } else if(type === 'acacia'){
-    add(trunkGeo(0.15, 0.26, 3.6, 0.9), K.bark);
-    const br = add(trunkGeo(0.08, 0.12, 1.6), K.bark); br.position.set(0.35, 2.0, 0); br.rotation.z = 0.9;
-    for(const [x, y, z, r] of [[0.9, 3.7, 0, 1.5], [-0.3, 3.55, 0.6, 1.1], [0.2, 3.6, -0.8, 1.15], [-0.95, 3.35, -0.2, 1.0]]) leafs.push(blobGeo(r, x, y, z, 0.32));
-  } else if(type === 'maple'){ // broad, round crown of orange-red leaves
-    add(trunkGeo(0.2, 0.34, 3.6), K.bark);
-    for(const [x, y, z, r] of [[0, 4.1, 0, 1.7], [1.2, 3.6, 0.3, 1.25], [-1.15, 3.7, -0.3, 1.3], [0.2, 5.0, -0.2, 1.2], [-0.3, 3.5, 1.15, 1.15], [0.4, 3.6, -1.2, 1.15]]) leafs.push(blobGeo(r, x, y, z, 0.9));
-  } else if(type === 'willow'){ // short thick trunk, wide crown, long drooping strands
-    add(trunkGeo(0.26, 0.42, 3.0, 0.3), K.bark);
-    for(const [x, y, z, r] of [[0.3, 3.6, 0, 1.6], [1.3, 3.3, 0.4, 1.1], [-0.9, 3.4, -0.4, 1.2], [0.2, 3.3, 1.2, 1.0], [0.4, 3.3, -1.2, 1.0]]) leafs.push(blobGeo(r, x, y, z, 0.6));
-    for(let i=0;i<26;i++){ const a = i/26*Math.PI*2 + R(-0.1, 0.1), r = R(1.5, 2.3), L = R(1.8, 2.9); const g = new THREE.BoxGeometry(0.16, L, 0.05); g.rotateY(-a); g.translate(0.3 + Math.cos(a)*r, 3.5 - L/2, Math.sin(a)*r); leafs.push(g); }
-  } else if(type === 'jungle'){
-    add(trunkGeo(0.32, 0.55, 6.6), K.bark);
-    for(const [x, y, z, r] of [[0, 6.4, 0, 1.9], [1.2, 5.9, 0.5, 1.4], [-1.1, 6.0, -0.4, 1.5], [0.3, 7.2, -0.3, 1.3], [-0.4, 5.7, 1.1, 1.2], [0.6, 5.6, -1.2, 1.2]]) leafs.push(blobGeo(r, x, y, z, 0.8));
-    const vine = new THREE.MeshStandardMaterial({ color: 0x3a7a2a, roughness: 0.9 });
-    for(let i=0;i<9;i++){ const a = R(0, 6.28), r = R(0.9, 2.1), L = R(1.2, 2.8); const v = add(new THREE.CylinderGeometry(0.025, 0.025, L, 4), vine); v.position.set(Math.cos(a)*r, 5.6 - L/2, Math.sin(a)*r); }
-  }
-  const fg = mergeGeometries(leafs.map(g => g.index ? g.toNonIndexed() : g)); fg.computeVertexNormals();
-  const foliage = add(fg, K.leaves);
-  return { group, foliage };
-}
 function makeTree(pos, id, type = 'oak'){
   const m = makeTreeModelType(type);
   m.group.position.set(pos.x, 0, pos.z);
@@ -1060,48 +1124,76 @@ function makeRod(){
 }
 
 // ---------------------------------------------------------------- humans
+// characters: a shaped torso, tapered limbs with rounded joints at the shoulders, elbows, wrists, hips, knees and ankles, real hands and shoes
+const HGEO = {}; const hg = (k, f) => HGEO[k] || (HGEO[k] = f()); // shared geometry, built once for everybody
+const TORSO_PROFILE = [[0.001, 0.0], [0.15, 0.015], [0.156, 0.12], [0.166, 0.28], [0.182, 0.42], [0.18, 0.5], [0.15, 0.575], [0.075, 0.625], [0.001, 0.632]];
+const torsoR = y => { for(let i = 1; i < TORSO_PROFILE.length; i++){ const [r1, y1] = TORSO_PROFILE[i], [r0, y0] = TORSO_PROFILE[i - 1]; if(y <= y1) return lerp(r0, r1, (y - y0)/(y1 - y0)); } return 0; };
+const TORSO_SX = 1.12, TORSO_SZ = 0.7;
+const lathe = (pts, seg = 24) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
+const limb = (r0, r1, len) => hg(`limb${r0},${r1},${len}`, () => new THREE.CylinderGeometry(r0, r1, len, 16, 1, true).translate(0, -len/2, 0)); // hangs down from its joint
+const ball = r => hg('ball' + r, () => new THREE.SphereGeometry(r, 16, 12));
+const EYE_SHINE = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const EYE_W = new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.3 });
 const EYE_I = new THREE.MeshStandardMaterial({ color: 0x2a1a10, roughness: 0.2 });
 function makeHuman(o){
   const mats = [];
   const M = (c, r = 0.8) => { const m = new THREE.MeshStandardMaterial({ color: c, roughness: r }); mats.push(m); return m; };
-  const skin = M(o.skin || 0xdca47f, 0.55), shirt = M(o.shirt, 0.85), pants = M(o.pants, 0.9), shoes = M(o.shoes || 0x2c2622, 0.6), hair = M(o.hair || 0x3a2718, 0.75);
+  const shade = (c, k) => new THREE.Color(c).multiplyScalar(k).getHex();
+  const skin = M(o.skin || 0xdca47f, 0.55), shirt = M(o.shirt, 0.85), shirtTrim = M(shade(o.shirt, 0.72), 0.85), pants = M(o.pants, 0.9), shoes = M(o.shoes || 0x2c2622, 0.6), sole = M(0x1a1512, 0.9), hair = M(o.hair || 0x3a2718, 0.75), belt = M(0x3d2614, 0.6);
   const root = new THREE.Group();
   const hips = new THREE.Group(); hips.position.y = 0.95; root.add(hips);
   const mesh = (geo, mat, parent, x=0, y=0, z=0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
-  mesh(new THREE.SphereGeometry(0.17, 20, 14), pants, hips).scale.set(1.12, 0.72, 0.8);
+  mesh(hg('pelvis', () => new THREE.SphereGeometry(0.17, 22, 14)), pants, hips).scale.set(1.08, 0.7, 0.78);
   const spine = new THREE.Group(); spine.position.y = 0.05; hips.add(spine);
-  mesh(new THREE.CapsuleGeometry(0.16, 0.3, 8, 20), shirt, spine, 0, 0.3, 0).scale.set(1.25, 1, 0.74);
-  mesh(new THREE.CylinderGeometry(0.05, 0.058, 0.14, 12), skin, spine, 0, 0.62, 0);
+  // torso: narrower at the waist, broad at the chest, sloping into the shoulders
+  mesh(hg('torso', () => lathe(TORSO_PROFILE, 28)), shirt, spine).scale.set(TORSO_SX, 1, TORSO_SZ);
+  mesh(hg('collar', () => new THREE.TorusGeometry(0.066, 0.017, 8, 20)), shirtTrim, spine, 0, 0.6, 0.005).rotation.x = Math.PI/2;
+  { const hem = mesh(hg('hem', () => new THREE.TorusGeometry(1, 0.016, 6, 28)), shirtTrim, spine, 0, 0.04, 0); hem.rotation.x = Math.PI/2; hem.scale.set(torsoR(0.04)*TORSO_SX + 0.005, torsoR(0.04)*TORSO_SZ + 0.005, 1); } // shirt hem
+  if(!o.vest){ const bt = mesh(hg('belt', () => new THREE.TorusGeometry(1, 0.022, 6, 28)), belt, hips, 0, 0.065, 0); bt.rotation.x = Math.PI/2; bt.scale.set(0.178, 0.13, 1); mesh(hg('buckle', () => new RoundedBoxGeometry(0.05, 0.04, 0.015, 1, 0.006)), MAT.gold, hips, 0, 0.065, 0.135); }
+  mesh(hg('neck', () => new THREE.CylinderGeometry(0.048, 0.056, 0.13, 14)), skin, spine, 0, 0.64, 0);
+  // head
   const head = new THREE.Group(); head.position.y = 0.67; spine.add(head);
-  mesh(new THREE.SphereGeometry(0.115, 28, 22), skin, head, 0, 0.12, 0).scale.set(0.9, 1.1, 1.0);
-  mesh(new THREE.SphereGeometry(0.075, 18, 14), skin, head, 0, 0.055, 0.03).scale.set(1, 0.8, 1);
-  const hc = mesh(new THREE.SphereGeometry(0.123, 28, 16, 0, Math.PI*2, 0, Math.PI*0.5), hair, head, 0, 0.135, -0.012); hc.scale.set(0.95, 1.1, 1.06);
-  mesh(new THREE.SphereGeometry(0.11, 18, 12), hair, head, 0, 0.11, -0.04).scale.set(0.95, 1.0, 0.8);
+  mesh(hg('skull', () => new THREE.SphereGeometry(0.115, 30, 22)), skin, head, 0, 0.12, 0).scale.set(0.9, 1.1, 1.0);
+  mesh(hg('jaw', () => new THREE.SphereGeometry(0.075, 20, 14)), skin, head, 0, 0.06, 0.018).scale.set(1.02, 0.78, 0.92); // jaw blends into the head
+  const hc = mesh(hg('hairCap', () => new THREE.SphereGeometry(0.123, 28, 16, 0, Math.PI*2, 0, Math.PI*0.5)), hair, head, 0, 0.135, -0.012); hc.scale.set(0.95, 1.1, 1.06);
+  mesh(hg('hairBack', () => new THREE.SphereGeometry(0.11, 18, 12)), hair, head, 0, 0.11, -0.04).scale.set(0.95, 1.0, 0.8);
   for(const s of [-1, 1]){
-    mesh(new THREE.SphereGeometry(0.018, 12, 10), EYE_W, head, s*0.038, 0.13, 0.093);
-    mesh(new THREE.SphereGeometry(0.0105, 10, 8), EYE_I, head, s*0.038, 0.13, 0.108);
-    mesh(new RoundedBoxGeometry(0.04, 0.009, 0.012, 1, 0.004), hair, head, s*0.04, 0.158, 0.1).rotation.z = -s*0.12;
-    mesh(new THREE.SphereGeometry(0.024, 10, 8), skin, head, s*0.103, 0.12, 0).scale.set(0.5, 1, 0.8);
+    mesh(hg('eyeW', () => new THREE.SphereGeometry(0.019, 14, 10)), EYE_W, head, s*0.038, 0.13, 0.092).scale.set(1.1, 1, 0.7);
+    mesh(hg('iris', () => new THREE.SphereGeometry(0.011, 12, 8)), EYE_I, head, s*0.038, 0.129, 0.104);
+    mesh(hg('shine', () => new THREE.SphereGeometry(0.0035, 6, 4)), EYE_SHINE, head, s*0.038 + 0.004, 0.134, 0.114);
+    mesh(hg('brow', () => new RoundedBoxGeometry(0.042, 0.01, 0.012, 1, 0.004)), hair, head, s*0.04, 0.158, 0.1).rotation.z = -s*0.12;
+    mesh(hg('ear', () => new THREE.SphereGeometry(0.024, 10, 8)), skin, head, s*0.103, 0.12, 0).scale.set(0.5, 1, 0.8);
   }
-  const nose = mesh(new THREE.ConeGeometry(0.017, 0.045, 8), skin, head, 0, 0.105, 0.113); nose.rotation.x = Math.PI/2;
-  const mouth = mesh(new THREE.TorusGeometry(0.02, 0.0045, 6, 12, Math.PI), M(0x8a3f3a, 0.5), head, 0, 0.068, 0.1); mouth.rotation.z = Math.PI;
+  const nose = mesh(hg('nose', () => new THREE.ConeGeometry(0.017, 0.045, 10)), skin, head, 0, 0.105, 0.113); nose.rotation.x = Math.PI/2;
+  const mouth = mesh(hg('mouth', () => new THREE.TorusGeometry(0.02, 0.0045, 6, 12, Math.PI)), M(0x8a3f3a, 0.5), head, 0, 0.068, 0.1); mouth.rotation.z = Math.PI;
   const arm = s => {
     const sh = new THREE.Group(); sh.position.set(s*0.235, 0.47, 0); spine.add(sh);
-    mesh(new THREE.SphereGeometry(0.07, 14, 10), shirt, sh);
-    mesh(new THREE.CapsuleGeometry(0.056, 0.2, 6, 12), shirt, sh, 0, -0.14, 0);
+    mesh(ball(0.062), shirt, sh, -Math.sign(sh.position.x)*0.01, 0, 0).scale.set(1, 0.9, 0.95);  // shoulder
+    mesh(limb(0.062, 0.051, 0.27), shirt, sh);                                 // sleeve, tapering to the elbow
+    mesh(hg('cuff', () => new THREE.TorusGeometry(0.051, 0.011, 6, 16)), shirtTrim, sh, 0, -0.265, 0).rotation.x = Math.PI/2;
     const el = new THREE.Group(); el.position.y = -0.29; sh.add(el);
-    mesh(new THREE.CapsuleGeometry(0.046, 0.19, 6, 12), skin, el, 0, -0.12, 0);
+    mesh(ball(0.049), skin, el);                                              // elbow
+    mesh(limb(0.048, 0.037, 0.24), skin, el, 0, 0, 0);                         // forearm
+    mesh(ball(0.037), skin, el, 0, -0.245, 0);                                 // wrist
     const hand = new THREE.Group(); hand.position.y = -0.27; el.add(hand);
-    mesh(new THREE.SphereGeometry(0.05, 12, 10), skin, hand, 0, -0.02, 0).scale.set(0.75, 1.15, 0.62);
+    mesh(hg('palm', () => new RoundedBoxGeometry(0.062, 0.07, 0.036, 2, 0.014)), skin, hand, 0, -0.015, 0);
+    mesh(hg('fingers', () => new RoundedBoxGeometry(0.058, 0.05, 0.032, 2, 0.013)), skin, hand, 0, -0.065, 0.012).rotation.x = 0.45;
+    const th = mesh(hg('thumb', () => new THREE.CapsuleGeometry(0.012, 0.03, 4, 8)), skin, hand, -s*0.034, -0.02, 0.016); th.rotation.z = s*0.6; th.rotation.x = 0.3;
     return { sh, el, hand };
   };
   const leg = s => {
     const hp = new THREE.Group(); hp.position.set(s*0.095, -0.04, 0); hips.add(hp);
-    mesh(new THREE.CapsuleGeometry(0.075, 0.3, 6, 14), pants, hp, 0, -0.21, 0);
+    mesh(ball(0.084), pants, hp);                                              // hip
+    mesh(limb(0.084, 0.064, 0.43), pants, hp);                                 // thigh
     const kn = new THREE.Group(); kn.position.y = -0.43; hp.add(kn);
-    mesh(new THREE.CapsuleGeometry(0.06, 0.3, 6, 12), pants, kn, 0, -0.2, 0);
-    mesh(new RoundedBoxGeometry(0.11, 0.08, 0.26, 2, 0.035), shoes, kn, 0, -0.44, 0.05);
+    mesh(ball(0.065), pants, kn);                                              // knee
+    mesh(limb(0.063, 0.05, 0.36), pants, kn);                                  // shin
+    mesh(hg('pcuff', () => new THREE.TorusGeometry(0.05, 0.01, 6, 16)), pants, kn, 0, -0.355, 0).rotation.x = Math.PI/2;
+    mesh(limb(0.042, 0.04, 0.05), skin, kn, 0, -0.36, 0);                      // ankle
+    // shoe: sole, upper and a rounded toe
+    mesh(hg('sole', () => new RoundedBoxGeometry(0.115, 0.03, 0.27, 2, 0.012)), sole, kn, 0, -0.465, 0.045);
+    mesh(hg('upper', () => new RoundedBoxGeometry(0.105, 0.075, 0.19, 2, 0.032)), shoes, kn, 0, -0.42, 0.01);
+    mesh(hg('toe', () => new THREE.SphereGeometry(0.054, 14, 10)), shoes, kn, 0, -0.437, 0.11).scale.set(1, 0.62, 1.05);
     return { hp, kn };
   };
   const L = arm(-1), Rr = arm(1), LL = leg(-1), RL = leg(1);
@@ -1111,14 +1203,16 @@ function makeHuman(o){
     mesh(new THREE.BoxGeometry(0.03, 0.02, 0.26), M(o.hardhat, 0.35), head, 0, 0.29, 0);
   }
   if(o.beard){ mesh(new THREE.SphereGeometry(0.07, 14, 10), hair, head, 0, 0.05, 0.06).scale.set(1.15, 0.85, 0.8); mesh(new RoundedBoxGeometry(0.07, 0.016, 0.02, 1, 0.007), hair, head, 0, 0.083, 0.112); }
-  if(o.vest){
-    const v = mesh(new THREE.CapsuleGeometry(0.163, 0.26, 8, 20), M(o.vest, 0.7), spine, 0, 0.3, 0); v.scale.set(1.27, 1, 0.77);
-    for(const y of [0.22, 0.36]){ const st = mesh(new THREE.CylinderGeometry(0.166, 0.166, 0.03, 24, 1, true), new THREE.MeshStandardMaterial({ color: 0xdfe6ea, metalness: 0.6, roughness: 0.25, envMap: envTex }), spine, 0, y, 0); st.scale.set(1.28, 1, 0.78); }
-    mesh(new THREE.TorusGeometry(0.19, 0.025, 8, 24), M(0x5b3a1e, 0.7), hips, 0, 0.1, 0).rotation.x = Math.PI/2;
+  if(o.vest){ // a work vest over the shirt, following the shape of the body, with reflective stripes
+    const vm = M(o.vest, 0.7), v = mesh(hg('vest', () => lathe(TORSO_PROFILE.filter(([, y]) => y >= 0.06 && y <= 0.56).map(([r, y]) => [r + 0.008, y]), 28)), vm, spine); v.scale.set(TORSO_SX, 1, TORSO_SZ);
+    const stripeM = new THREE.MeshStandardMaterial({ color: 0xdfe6ea, metalness: 0.6, roughness: 0.25, envMap: envTex });
+    for(const y of [0.2, 0.34]){ const r = torsoR(y) + 0.012, st = mesh(hg('vstripe', () => new THREE.CylinderGeometry(1, 1, 0.028, 28, 1, true)), stripeM, spine, 0, y, 0); st.scale.set(r*TORSO_SX, 1, r*TORSO_SZ); }
+    const bt = mesh(hg('belt', () => new THREE.TorusGeometry(1, 0.022, 6, 28)), M(0x5b3a1e, 0.7), hips, 0, 0.065, 0); bt.rotation.x = Math.PI/2; bt.scale.set(0.178, 0.13, 1);
   }
   if(o.backpack){
     mesh(new RoundedBoxGeometry(0.26, 0.32, 0.13, 3, 0.04), M(0x6a4a2e, 0.8), spine, 0, 0.32, -0.17);
     mesh(new RoundedBoxGeometry(0.22, 0.12, 0.05, 2, 0.02), M(0x5a3d24, 0.8), spine, 0, 0.22, -0.245);
+    
   }
   root.traverse(m => { if(m.isMesh) m.castShadow = true; });
   return { root, mats, parts: { hips, spine, head, lSh: L.sh, lEl: L.el, lHand: L.hand, rSh: Rr.sh, rEl: Rr.el, rHand: Rr.hand, lHip: LL.hp, lKn: LL.kn, rHip: RL.hp, rKn: RL.kn }, phase: 0 };
@@ -1178,7 +1272,7 @@ function animateHuman(h, st, dt){
   }
   approach(P.hips.position, 'y', hipsY, k);
   P.hips.userData.bx = (P.hips.userData.bx || 0) + (hipsX - (P.hips.userData.bx || 0)) * k;
-  P.hips.rotation.x = P.hips.userData.bx - (st.flip >= 0 ? easeOut(st.flip) * Math.PI * 2 : 0);
+  P.hips.rotation.x = P.hips.userData.bx + (st.flip >= 0 ? (st.flipDir || -1) * easeOut(st.flip) * Math.PI * 2 : 0); // -1 backflip, +1 front flip
   if(!st.swimming || st.swing >= 0){ approach(P.lSh.rotation, 'x', shL, st.swing >= 0 ? 0.5 : k); approach(P.rSh.rotation, 'x', shR, st.swing >= 0 ? 0.5 : k); }
   approach(P.lSh.rotation, 'z', shLz, k); approach(P.rSh.rotation, 'z', shRz, k);
   approach(P.lEl.rotation, 'x', elL, k); approach(P.rEl.rotation, 'x', elR, k);
@@ -1669,19 +1763,21 @@ const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 // placed wood blocks look like real logs: that tree's bark on the sides, growth rings on top and bottom
 function logEndTex(inner, ring, bark){ const c = makeCanvas(128), g = c.getContext('2d'); g.fillStyle = bark; g.fillRect(0, 0, 128, 128); g.fillStyle = inner; g.fillRect(8, 8, 112, 112);
   g.strokeStyle = ring; for(let r=10; r<60; r+=9){ g.lineWidth = R(1.5, 3); g.beginPath(); g.arc(64 + R(-2, 2), 64 + R(-2, 2), r, 0, 7); g.stroke(); } pixNoise(g, 128, 12); return tex(c, 1); }
-function logBarkTex(base, line, birch){ const c = makeCanvas(128), g = c.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, 128, 128);
-  if(birch){ for(let i=0;i<40;i++){ g.fillStyle = `rgba(30,26,22,${R(0.5, 0.9)})`; g.fillRect(R(0, 128), R(0, 128), R(8, 26), R(2, 4)); } }
-  else for(let i=0;i<26;i++){ const x = R(0, 128); g.strokeStyle = line; g.lineWidth = R(1.5, 4); g.beginPath(); for(let y=0;y<=128;y+=8){ const xx = x + Math.sin(y*0.06 + i)*3; y ? g.lineTo(xx, y) : g.moveTo(xx, y); } g.stroke(); }
-  pixNoise(g, 128, 16); return tex(c, 1); }
-const LOG_LOOK = {
-  wood:        [logBarkTex('#6b4426', 'rgba(30,16,6,0.6)'), logEndTex('#d9b07a', '#9a6a3a', '#5a3820')],
-  birch_wood:  [logBarkTex('#f0ece2', '', true), logEndTex('#f0dcb0', '#c8a878', '#e8e4d8')],
-  spruce_wood: [logBarkTex('#3a2416', 'rgba(0,0,0,0.6)'), logEndTex('#b88a5a', '#7a5230', '#2a1a10')],
-  acacia_wood: [logBarkTex('#7c7468', 'rgba(40,36,30,0.6)'), logEndTex('#e8783a', '#b8501e', '#6a645a')],
-  maple_wood:  [logBarkTex('#7a4a2e', 'rgba(40,20,8,0.6)'), logEndTex('#f0b070', '#c8742a', '#6a3e24')],
-  willow_wood: [logBarkTex('#8a8068', 'rgba(50,46,34,0.6)'), logEndTex('#e8e0b0', '#b0a870', '#76705a')],
-  jungle_wood: [logBarkTex('#8a6a3c', 'rgba(60,110,30,0.75)'), logEndTex('#d8a870', '#a07040', '#7a5c32')],
+// every kind of wood has its own bark pattern
+const BARK_STYLE = {
+  oak(g){ g.fillStyle = '#6b4426'; g.fillRect(0, 0, 128, 128); for(let i=0;i<22;i++){ const x = R(0, 128); g.strokeStyle = 'rgba(28,14,4,0.75)'; g.lineWidth = R(2.5, 5); g.beginPath(); for(let y=0;y<=128;y+=8){ const xx = x + Math.sin(y*0.07 + i)*4; y ? g.lineTo(xx, y) : g.moveTo(xx, y); } g.stroke(); } },
+  birch(g){ g.fillStyle = '#f2eee4'; g.fillRect(0, 0, 128, 128); for(let i=0;i<40;i++){ g.fillStyle = `rgba(28,24,20,${R(0.55, 0.95)})`; g.fillRect(R(0, 128), R(0, 128), R(8, 28), R(2, 4.5)); } for(let i=0;i<10;i++){ g.fillStyle = 'rgba(210,150,120,0.35)'; g.fillRect(R(0, 128), R(0, 128), R(10, 30), 1.5); } },
+  spruce(g){ g.fillStyle = '#24130a'; g.fillRect(0, 0, 128, 128); for(let i=0;i<150;i++){ const x = R(-6, 128), y = R(-6, 128); g.fillStyle = `hsl(${R(8, 22)},${R(35, 55)}%,${R(16, 30)}%)`; g.beginPath(); g.ellipse(x, y, R(4, 9), R(3, 6), R(-0.6, 0.6), 0, 7); g.fill(); } }, // flaky, scaly bark
+  acacia(g){ g.fillStyle = '#7c7468'; g.fillRect(0, 0, 128, 128); for(let i=0;i<16;i++){ const x = R(0, 128); g.strokeStyle = 'rgba(40,34,28,0.7)'; g.lineWidth = R(1.5, 3); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + R(-14, 14), 128); g.stroke(); } for(let i=0;i<30;i++){ g.fillStyle = 'rgba(232,120,58,0.55)'; g.fillRect(R(0, 128), R(0, 128), R(2, 5), R(4, 10)); } },
+  maple(g){ g.fillStyle = '#7a3e28'; g.fillRect(0, 0, 128, 128); for(let x=0;x<128;x+=8){ g.fillStyle = `rgba(${R(30, 60)},12,6,0.6)`; g.fillRect(x + R(-1, 1), 0, 2.5, 128); for(let y=0;y<128;y+=R(14, 26)){ g.fillStyle = 'rgba(160,90,60,0.4)'; g.fillRect(x + 3, y, 4, 2); } } },
+  willow(g){ g.fillStyle = '#7d7c62'; g.fillRect(0, 0, 128, 128); g.strokeStyle = 'rgba(40,40,26,0.7)'; g.lineWidth = 2.5; for(let i=-128;i<256;i+=16){ g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 64, 128); g.stroke(); g.beginPath(); g.moveTo(i + 64, 0); g.lineTo(i, 128); g.stroke(); } }, // diamond fissures
+  jungle(g){ g.fillStyle = '#9a7a48'; g.fillRect(0, 0, 128, 128); for(let i=0;i<10;i++){ g.strokeStyle = 'rgba(60,40,16,0.5)'; g.lineWidth = 2; const x = R(0, 128); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + R(-6, 6), 128); g.stroke(); } for(let i=0;i<14;i++){ g.fillStyle = `rgba(${R(50, 80)},${R(120, 160)},40,0.8)`; g.beginPath(); g.ellipse(R(0, 128), R(0, 128), R(6, 14), R(4, 9), R(0, 3), 0, 7); g.fill(); } g.strokeStyle = '#3a7a2a'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 0); g.bezierCurveTo(60, 40, 0, 80, 40, 128); g.stroke(); }, // moss and a vine
 };
+const WOOD_STYLE = { wood: 'oak', birch_wood: 'birch', spruce_wood: 'spruce', acacia_wood: 'acacia', maple_wood: 'maple', willow_wood: 'willow', jungle_wood: 'jungle' };
+const WOOD_INNER = { oak: ['#d9b07a', '#9a6a3a'], birch: ['#f4e6c4', '#d4b48a'], spruce: ['#f0d49a', '#c09048'], acacia: ['#f07a32', '#a8481a'], maple: ['#f0c0a0', '#c47a5a'], willow: ['#e6e8b8', '#a8a868'], jungle: ['#e0986a', '#9a5a32'] };
+const WOOD_BARK_COL = { oak: '#5a3820', birch: '#e8e4d8', spruce: '#2a170c', acacia: '#6a645a', maple: '#6a3420', willow: '#6a6a50', jungle: '#7a5c32' };
+function logBarkTex(kind){ const c = makeCanvas(128), g = c.getContext('2d'); BARK_STYLE[kind](g); pixNoise(g, 128, 14); return tex(c, 1); }
+const LOG_LOOK = Object.fromEntries(Object.entries(WOOD_STYLE).map(([k, kind]) => [k, [logBarkTex(kind), logEndTex(WOOD_INNER[kind][0], WOOD_INNER[kind][1], WOOD_BARK_COL[kind])]]));
 const LOG_GEO = new THREE.BoxGeometry(1, 1, 1);
 const LOG_MATS = Object.fromEntries(Object.entries(LOG_LOOK).map(([k, [side, end]]) => { const sm = new THREE.MeshStandardMaterial({ map: side, roughness: 0.9 }), em = new THREE.MeshStandardMaterial({ map: end, roughness: 0.8 }); return [k, [sm, sm, em, em, sm, sm]]; }));
 function blockMesh(key){
@@ -2420,7 +2516,7 @@ function buildTarget(){
   const t = { x, z, base, ok: true, why: '' };
   const bad = w => { t.ok = false; t.why = w; return t; };
   if(Math.hypot(x - P.pos.x, base + BS/2 - (P.pos.y + 1), z - P.pos.z) > 7) return bad('That\'s too far away — move closer.');
-  if(inHub() && Math.abs(x - HUB.x) < 4.6 && Math.abs(z - HUB.z) < 4.6) return bad('You can\'t build on the portal.');
+  if(inHub() || z > 1000) return bad('You can\'t build in the Hub — build on your own islands.');
   if(base < P.pos.y + 1.7 && base + BS > P.pos.y + 0.05 && Math.abs(P.pos.x - x) < 0.3 + BS/2 && Math.abs(P.pos.z - z) < 0.3 + BS/2) return bad('You\'re standing there!');
   for(const b of boxes){ if(b.on && !b.on()) continue; if(x + BS*0.45 > b.x0 && x - BS*0.45 < b.x1 && z + BS*0.45 > b.z0 && z - BS*0.45 < b.z1 && base + BS*0.95 > b.y0 && base + BS*0.05 < b.y1) return bad('Something is already there.'); }
   for(const c of colliders){ if(!c.on() || base > 1.8) continue; if(Math.hypot(x - c.x, z - c.z) < c.r + BS/2) return bad('Something is in the way.'); }
@@ -2475,7 +2571,6 @@ const POTIONS = {
 for(const [k, p] of Object.entries(POTIONS)) ICON[k] = drawIcon(bottleDraw(p.col));
 Object.assign(ITEMS, {
   wheat:   { name: 'Wheat', icon: ICON.wheat, sell: 2, color: 0xe2bd5c },
-  seeds:   { name: 'Wheat Seeds', icon: ICON.seeds, buy: 2, sell: 1, color: 0x8a5a33 },
   hoe:     { name: 'Hoe', svg: SVG_HOE, tool: true, buy: 125 },
   scythe:  { name: 'Scythe', svg: SVG_SCYTHE, tool: true, buy: 215 },
   plow:    { name: 'Plow', svg: SVG_PLOW, tool: true, buy: 600 },
@@ -2489,30 +2584,23 @@ Object.assign(ITEMS, {
 });
 if(false) for(const [k, p] of Object.entries(POTIONS)) ITEMS[k] = { name: p.name, icon: ICON[k], potion: true, buy: p.buy, sell: Math.floor(p.buy / 3), color: new THREE.Color(p.col).getHex() };
 // log icons: bark on the side, the cut end showing the wood colour — each kind looks different
-function logIcon(bark, marks, inner, ring, extra){
-  return drawIcon(g => {
-    g.save(); g.translate(32, 34); g.rotate(-0.5);
-    g.fillStyle = bark; g.beginPath(); g.roundRect(-22, -13, 40, 26, 6); g.fill();
-    g.strokeStyle = marks.c; g.lineWidth = marks.w;
-    for(let i=0;i<marks.n;i++){ const y = -10 + i*20/marks.n + 2; g.beginPath(); if(marks.dash){ const x = -18 + (i*13 % 30); g.moveTo(x, y); g.lineTo(x + 7, y); } else { g.moveTo(-20, y); g.bezierCurveTo(-8, y - 2, 4, y + 2, 16, y); } g.stroke(); }
-    if(extra) extra(g);
-    g.fillStyle = inner; g.beginPath(); g.ellipse(18, 0, 7, 13, 0, 0, 7); g.fill();
-    g.strokeStyle = ring; g.lineWidth = 1.4; for(const r of [0.35, 0.65]){ g.beginPath(); g.ellipse(18, 0, 7*r, 13*r, 0, 0, 7); g.stroke(); }
-    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1.5; g.beginPath(); g.ellipse(18, 0, 7, 13, 0, 0, 7); g.stroke();
-    g.restore();
-  });
-}
-ICON.wood = logIcon('#6b4426', { c: 'rgba(30,16,6,0.55)', w: 2, n: 4 }, '#d9b07a', '#9a6a3a');
-const LOG_ICONS = {
-  birch_wood:  logIcon('#f2efe6', { c: '#2a2420', w: 2.5, n: 7, dash: true }, '#f0dcb0', '#c8a878'),
-  spruce_wood: logIcon('#3a2416', { c: 'rgba(0,0,0,0.6)', w: 2, n: 5 }, '#b88a5a', '#7a5230'),
-  acacia_wood: logIcon('#7c7468', { c: 'rgba(40,36,30,0.55)', w: 2, n: 4 }, '#e8783a', '#b8501e'),
-  maple_wood:  logIcon('#7a4a2e', { c: 'rgba(40,20,8,0.6)', w: 2, n: 4 }, '#f0b070', '#c8742a', g => { g.fillStyle = '#ff8a3a'; for(const [x, y, r] of [[-12, -9, 4], [2, -10, 3.5]]){ g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }),
-  willow_wood: logIcon('#8a8068', { c: 'rgba(50,46,34,0.6)', w: 2, n: 4 }, '#e8e0b0', '#b0a870'),
-  jungle_wood: logIcon('#8a6a3c', { c: 'rgba(40,28,10,0.5)', w: 2, n: 3 }, '#d8a870', '#a07040', g => { g.fillStyle = '#4a9a2a'; for(const [x, y, r] of [[-14, -8, 4], [-6, -10, 3], [4, -9, 3.5], [-10, 8, 3]]){ g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }),
-};
-if(ITEMS.wood) ITEMS.wood.icon = ICON.wood;
-for(const [k, n, hex] of [['birch_wood', 'Birch Wood', '#f2eee2'], ['spruce_wood', 'Spruce Wood', '#7a5a3a'], ['acacia_wood', 'Acacia Wood', '#d8865a'], ['jungle_wood', 'Jungle Wood', '#b89a62'], ['maple_wood', 'Maple Wood', '#c8804a'], ['willow_wood', 'Willow Wood', '#a8a070']]){ ICON[k] = LOG_ICONS[k]; ITEMS[k] = { name: n, icon: ICON[k], block: true, sell: 3, mat: texMat(C.bark, { color: new THREE.Color(hex).getHex(), bumpMap: tex(C.bark, 1), bumpScale: 2.5 }), color: new THREE.Color(hex).getHex() }; }
+// wood icons: a log wrapped in that tree's own bark, its coloured rings, and one of its leaves
+const LEAF_ICON_COL = { oak: ['#5f9a3a', '#3a6a22'], birch: ['#a8d468', '#6a9a3a'], spruce: ['#3f6e4c', '#24402c'], acacia: ['#9cb456', '#5a7030'], maple: ['#f0662a', '#a83a12'], willow: ['#9cc84e', '#5a8a2a'], jungle: ['#4f9a30', '#2a5a18'] };
+function woodIcon(kind){ return drawIcon(g => {
+  const bc = document.createElement('canvas'); bc.width = bc.height = 128; BARK_STYLE[kind](bc.getContext('2d'));
+  g.save(); g.translate(30, 36); g.rotate(-0.5);
+  g.save(); g.beginPath(); g.roundRect(-23, -14, 42, 28, 7); g.clip(); g.drawImage(bc, -30, -30, 70, 70); g.restore();
+  g.strokeStyle = 'rgba(0,0,0,0.4)'; g.lineWidth = 1.5; g.beginPath(); g.roundRect(-23, -14, 42, 28, 7); g.stroke();
+  const [inner, ring] = WOOD_INNER[kind]; g.fillStyle = WOOD_BARK_COL[kind]; g.beginPath(); g.ellipse(19, 0, 8.5, 14.5, 0, 0, 7); g.fill();
+  g.fillStyle = inner; g.beginPath(); g.ellipse(19, 0, 7, 12.5, 0, 0, 7); g.fill();
+  g.strokeStyle = ring; g.lineWidth = 1.4; for(const r of [0.3, 0.55, 0.8]){ g.beginPath(); g.ellipse(19, 0, 7*r, 12.5*r, 0, 0, 7); g.stroke(); }
+  g.restore();
+  if(kind === 'spruce'){ g.strokeStyle = LEAF_ICON_COL.spruce[0]; g.lineWidth = 1.6; g.beginPath(); g.moveTo(40, 22); g.lineTo(58, 4); g.stroke(); for(let i=0;i<9;i++){ const t = i/8, x = 40 + 18*t, y = 22 - 18*t; for(const d of [-1, 1]){ g.beginPath(); g.moveTo(x, y); g.lineTo(x + d*5 + 3, y + d*5 - 3); g.stroke(); } } }
+  else { const [f, v] = LEAF_ICON_COL[kind]; drawLeaf(g, kind, 49, 15, kind === 'jungle' ? 12 : kind === 'willow' ? 13 : 10, 0.7, f, v); g.strokeStyle = 'rgba(0,0,0,0.25)'; }
+}); }
+const LOG_ICONS = Object.fromEntries(Object.entries(WOOD_STYLE).map(([k, kind]) => [k, woodIcon(kind)]));
+if(ITEMS.wood){ ITEMS.wood.icon = ICON.wood = LOG_ICONS.wood; ITEMS.wood.mat = LOG_MATS.wood[0]; }
+for(const [k, n, hex] of [['birch_wood', 'Birch Wood', '#f2eee2'], ['spruce_wood', 'Spruce Wood', '#7a5a3a'], ['acacia_wood', 'Acacia Wood', '#d8865a'], ['jungle_wood', 'Jungle Wood', '#b89a62'], ['maple_wood', 'Maple Wood', '#c8804a'], ['willow_wood', 'Willow Wood', '#a8a070']]){ ICON[k] = LOG_ICONS[k]; ITEMS[k] = { name: n, icon: ICON[k], block: true, sell: 3, mat: LOG_MATS[k][0], color: new THREE.Color(hex).getHex() }; }
 for(const k of Object.keys(ITEMS)) if(!ITEM_ORDER.includes(k)) ITEM_ORDER.push(k);
 WORKER_KIND.wheat = { name: 'Wheat Worker', item: 'wheat', over: 0xa0703a, hat: 0xe8c25a, price: [100, 300, 700] };
 // ================================================================ THE HUB'S SEVEN PLACES — shared systems
@@ -2638,12 +2726,12 @@ const SKILLS = [
   { id: 'mining', name: 'Mining', how: 'Mine stone humps, dig, and mine ores down in the Mines.' },
   { id: 'fishing', name: 'Fishing', how: 'Catch fish at the pond or the Fishing Lake.' },
   { id: 'enchanting', name: 'Enchanting', how: 'Unlock it at the top of the Wizard Tower, then enchant your tools.', locked: true },
-  { id: 'farming', name: 'Farming', how: 'Harvest and plant wheat at the Farms.' },
+  { id: 'farming', name: 'Farming', how: 'Harvest wheat at the Farms.' },
   { id: 'combat', name: 'Combat', how: 'Win fights in the Combat Tower and the Wizard Tower.' },
 ];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const SKILL_MAX = 7;
-const XP_NEXT = L => 40 + L*40;
+const XP_NEXT = L => Math.round(100 * Math.pow(L, 1.6)); // XP needed to go from level L to L+1: 100, 303, 580, 919, 1310, 1752
 function skillXP(id, amt){
   const s = S.skills[id]; if(!s || s.locked || s.lvl >= SKILL_MAX) return;
   s.xp += amt;
@@ -2734,7 +2822,7 @@ const FIELD = FARM.at(3.5, 0), FIELD_R = 9.2;
   for(let x = -FIELD_R; x <= FIELD_R; x += 0.9) for(let z = -FIELD_R; z <= FIELD_R; z += 0.9) if(Math.hypot(x, z) < FIELD_R) addCrop(FIELD.x + x + R(-0.15, 0.15), FIELD.z + z + R(-0.15, 0.15), 0, true);
   // hay bales & a scarecrow
   for(const [U, V] of [[-9, -9], [-10.5, -7.5], [12, -7], [11, 8]]){ const p = FARM.at(U, V); const b = deco(new THREE.CylinderGeometry(0.6, 0.6, 1.1, 20), new THREE.MeshStandardMaterial({ map: tex(C.leaves, 2), color: 0xf2d27a, roughness: 1 }), p.x, 0.6, p.z); b.rotation.z = Math.PI/2; b.rotation.y = R(0, 3); colliders.push({ x: p.x, z: p.z, r: 0.7, on: () => true }); }
-  const sc = FARM.at(3.5, 0);
+  const sc = FARM.at(3.5, 0); colliders.push({ x: sc.x, z: sc.z, r: 0.42, on: () => true }); // the scarecrow is solid
   deco(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8), MAT.darkWood, sc.x, 1.1, sc.z);
   const arm = deco(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 8), MAT.darkWood, sc.x, 1.6, sc.z); arm.rotation.z = Math.PI/2;
   deco(new RoundedBoxGeometry(0.5, 0.6, 0.3, 2, 0.08), new THREE.MeshStandardMaterial({ color: 0x5a7fb0, roughness: 1 }), sc.x, 1.55, sc.z);
@@ -2850,8 +2938,8 @@ const SKILL_TIPS = {
   mining: ['Mine the cobblestone humps on Starter Island with your pickaxe.', 'Dig up grass and dirt.', 'Go down into the Mines from the Hub and mine ores — the deeper the level, the better the ore.', 'Ores and humps grow back, so come back for more.'],
   fishing: ['Buy a Fishing Rod from Toolsmith Toby.', 'Fish in the pond on Pond Island or at the Fishing Lake from the Hub.', 'Click to cast, then click again when you get a bite.', 'A Lure enchantment makes fish bite sooner.'],
   enchanting: ['Enchanting starts locked. Climb to the top of the Wizard Tower from the Hub and meet Wizard Alaric.', 'Find the scroll pieces and put them on the five enchanting tables.', 'Once it is unlocked, enchant your tools with the wizard — you can do it again every day.', 'Sleep in a bed to start a new day faster.'],
-  farming: ['Go to the Farms from the Hub and talk to Farmer Fern.', 'Harvest ripe wheat with a hoe or scythe, and plant more.', 'Sell your wheat to Fern.', 'A Wheat Worker farms for you while you are away.'],
-  combat: ['Go to the Combat Settlement from the Hub and win tournaments in the Combat Tower.', 'Each floor has harder, faster enemies and a better prize.', 'Hold Right Shift with a Shield to block most of the damage.', 'Builder Bill can make your sword longer so it reaches farther.', 'A Throwing Axe hits enemies from far away.'],
+  farming: ['Go to the Farms from the Hub and talk to Farmer Fern.', 'Harvest ripe wheat with a hoe or scythe — it grows back by itself.', 'Sell your wheat to Fern.', 'A Wheat Worker farms for you while you are away.'],
+  combat: ['Go to the Combat Settlement from the Hub and win tournaments in the Combat Tower.', 'Each floor has harder, faster enemies and a better prize.', 'Hold Right Shift with a Shield to block most of the damage.', 'With a sword out, A and D swipe, W jabs and S slams — walk with the arrow keys.', 'Builder Bill can make your sword longer so it reaches farther.', 'A Throwing Axe hits enemies from far away and comes back to you like a boomerang.'],
 };
 MENUS.skilltips = ({ M, btn }) => {
   const id = M.npc.skill, sk = SKILLS.find(k => k.id === id), st = S.skills[id], max = st.lvl >= SKILL_MAX;
@@ -2864,32 +2952,40 @@ const thrown = { mesh: makeThrowAxe(), state: 'none', vel: V3(), t: 0, slot: nul
 thrown.mesh.visible = false; scene.add(thrown.mesh);
 function throwAxe(){
   if(S.menu || S.invOpen || S.dead || !S.playing || isFrozen() || plow.riding || P.swimming) return;
-  if(thrown.state !== 'none'){ if(selKey() === 'throw_axe' || !has('throw_axe')) popup(thrown.state === 'flying' ? 'Your axe is still flying!' : 'Go and pick up your axe first!', P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); return; }
+  if(thrown.state !== 'none'){ if(selKey() === 'throw_axe' || !has('throw_axe')) popup(thrown.state === 'flying' ? 'Your axe is still coming back!' : 'Go and pick up your axe first!', P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); return; }
   if(selKey() !== 'throw_axe'){ if(!has('throw_axe')){ say('Hint', 'You need a Throwing Axe to throw. Toolsmith Toby sells them in the Merchants Hall.'); return; } if(!equip('throw_axe')){ say('Hint', 'Put your Throwing Axe in your hotbar first.'); return; } }
   if(swing.t >= 0) return;
   thrown.dmg = Math.round(playerDamage() * 1.5); thrown.slot = S.slots[S.selIdx]; thrown.idx = S.selIdx; S.slots[S.selIdx] = null; renderHotbar();
   const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
   thrown.mesh.position.set(P.pos.x + fx*0.7, P.pos.y + 1.5, P.pos.z + fz*0.7); thrown.mesh.rotation.set(0, P.yaw, 0); thrown.mesh.visible = true;
-  thrown.vel.set(fx*17, 3.2, fz*17); thrown.state = 'flying'; thrown.t = 0; thrown.hitSet.clear(); sfx('cast');
+  thrown.vel.set(fx*AXE_SPEED, 0.6, fz*AXE_SPEED); thrown.state = 'flying'; thrown.back = false; thrown.hitCd = 0; thrown.t = 0; sfx('cast');
 }
-function thrownStop(bounce){ thrown.vel.x *= -0.12*bounce; thrown.vel.z *= -0.12*bounce; thrown.vel.y = Math.max(thrown.vel.y, 1.5); thrown.stopped = true; }
-function thrownBack(msg){ thrown.state = 'none'; thrown.mesh.visible = false; if(spaceFor('throw_axe') >= 1){ addItem('throw_axe', 1); } renderHotbar(); if(msg) popup(msg, P.pos.clone().add(V3(0, 2.4, 0)), '#ffd166'); }
+function catchThrown(){ // it's back in your hand
+  if(spaceFor('throw_axe') < 1){ const g = groundAt(P.pos.x, P.pos.z) ?? P.pos.y; thrown.mesh.position.set(P.pos.x, g + 0.05, P.pos.z); thrown.mesh.rotation.set(0, R(0, 6), Math.PI/2); thrown.state = 'landed'; thrown.t = 0; popup('Your inventory is full — it dropped at your feet', P.pos.clone().add(V3(0, 2.4, 0)), '#ffb3b3'); return; }
+  const back = S.slots[thrown.idx] === null ? thrown.idx : S.slots[S.selIdx] === null ? S.selIdx : -1;
+  thrown.state = 'none'; thrown.mesh.visible = false; if(back >= 0) S.slots[back] = thrown.slot || { k: 'throw_axe', n: 1 }; else addItem('throw_axe', 1);
+  sfx('pickup'); popup('Caught!', P.pos.clone().add(V3(0, 2.3, 0)), '#ffd166'); renderHotbar();
+}
+const AXE_OUT_T = 0.55, AXE_SPEED = 17, AXE_BACK_SPEED = 19;
 UPDATERS.push(dt => {
-  if(thrown.state === 'flying'){
-    const m = thrown.mesh, p = m.position, px = p.x, pz = p.z; thrown.t += dt;
-    thrown.vel.y -= 14*dt; p.addScaledVector(thrown.vel, dt); m.rotateX(dt * (thrown.stopped ? 6 : 22)); // spins end over end
-    if(!thrown.stopped){
-      for(const tr of trees) if(tr.standing && Math.hypot(tr.x - p.x, tr.z - p.z) < 0.75){ fellTree(tr, thrown.vel.x, thrown.vel.z); skillXP('foraging', 2); thrownStop(1); break; }
-      if(!thrown.stopped) for(const f of ATTACKABLE) for(const a of f()) if(!thrown.stopped && Math.hypot(a.x - p.x, a.z - p.z) < 0.9 && Math.abs((a.y ?? 0) + 1 - p.y) < 1.6){ a.hit(thrown.dmg); popup('Axe hit!', V3(a.x, (a.y ?? 0) + 2.4, a.z), '#ffd166'); thrownStop(1); }
-      if(!thrown.stopped) for(const A of animals) if(A.alive && Math.hypot(A.x - p.x, A.z - p.z) < 0.8 && p.y < 2){ hitAnimal(A, 2); thrownStop(1); break; }
-      if(!thrown.stopped) for(const b of boxes) if(p.x > b.x0 && p.x < b.x1 && p.z > b.z0 && p.z < b.z1 && p.y > b.y0 && p.y < b.y1 && (!b.on || b.on())){ p.x = px; p.z = pz; sfx('hit'); thrownStop(1); break; } // bounced off a wall
+  if(thrown.state === 'flying'){ // like a boomerang: out, then curving back to your hand
+    const m = thrown.mesh, p = m.position, px = p.x, pz = p.z; thrown.t += dt; thrown.hitCd = Math.max(0, (thrown.hitCd || 0) - dt);
+    if(thrown.back){
+      const tx = P.pos.x, ty = P.pos.y + 1.3, tz = P.pos.z, dx = tx - p.x, dy = ty - p.y, dz = tz - p.z, d = Math.hypot(dx, dy, dz);
+      if(d < 0.9 || d > 80 || thrown.t > 7){ catchThrown(); return; }
+      const want = V3(dx/d*AXE_BACK_SPEED, dy/d*AXE_BACK_SPEED, dz/d*AXE_BACK_SPEED); thrown.vel.lerp(want, 1 - Math.exp(-dt*7)); // swings round toward you
+    } else if(thrown.t > AXE_OUT_T) thrown.back = true;
+    p.addScaledVector(thrown.vel, dt); m.rotateX(dt*24); // spins end over end
+    const turnBack = () => { thrown.back = true; thrown.hitCd = 0.25; };
+    if(!thrown.hitCd){
+      for(const tr of trees) if(tr.standing && Math.hypot(tr.x - p.x, tr.z - p.z) < 0.75 && p.y < (tr.y ?? 0) + 5){ fellTree(tr, thrown.vel.x, thrown.vel.z); skillXP('foraging', 2); turnBack(); break; }
+      if(!thrown.hitCd) for(const f of ATTACKABLE) for(const a of f()) if(!thrown.hitCd && Math.hypot(a.x - p.x, a.z - p.z) < 0.9 && Math.abs((a.y ?? 0) + 1 - p.y) < 1.6){ a.hit(thrown.dmg); popup('Axe hit!', V3(a.x, (a.y ?? 0) + 2.4, a.z), '#ffd166'); turnBack(); }
+      if(!thrown.hitCd) for(const A of animals) if(A.alive && Math.hypot(A.x - p.x, A.z - p.z) < 0.8 && Math.abs(p.y - P.pos.y) < 2){ hitAnimal(A, 2); turnBack(); break; }
     }
-    const g = groundAt(p.x, p.z, p.y + 1.2);
-    if(g !== null && p.y <= g + 0.08 && thrown.vel.y <= 0){ p.y = g + 0.05; m.rotation.set(0, R(0, 6), Math.PI/2); thrown.state = 'landed'; thrown.stopped = false; thrown.t = 0; burst(V3(p.x, g + 0.1, p.z), 0xb8b2a8, 5, { up: 0.4 }); }
-    else if(p.y < -25 || thrown.t > 6){ thrown.stopped = false; thrownBack('Your axe fell into the sky — it flew back to you!'); }
+    if(!thrown.back) for(const b of boxes) if(p.x > b.x0 && p.x < b.x1 && p.z > b.z0 && p.z < b.z1 && p.y > b.y0 && p.y < b.y1 && (!b.on || b.on())){ p.x = px; p.z = pz; sfx('hit'); turnBack(); break; } // bonk — off a wall and straight back
   } else if(thrown.state === 'landed'){
-    thrown.t += dt; const p = thrown.mesh.position; thrown.mesh.position.y += Math.sin(performance.now()*0.004)*0.0006;
-    if(thrown.t > 0.4 && Math.hypot(P.pos.x - p.x, P.pos.z - p.z) < 0.9 && Math.abs(P.pos.y - p.y) < 1.5) pickUpThrown();
+    thrown.t += dt;
+    const p = thrown.mesh.position; if(thrown.t > 0.4 && Math.hypot(P.pos.x - p.x, P.pos.z - p.z) < 0.9 && Math.abs(P.pos.y - p.y) < 1.5) pickUpThrown();
   }
 });
 function pickUpThrown(){
@@ -2904,7 +3000,7 @@ PROMPTS.taxe = () => [['E', 'Pick up Throwing Axe']];
 INTERACT.taxe = () => pickUpThrown();
 
 // ================================================================ SWORD FIGHTING: four moves on the arrow keys, one or two hands, combos for mixing them up
-const SWORD_KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'jab', ArrowDown: 'slam' };
+const SWORD_KEYS = { KeyA: 'left', KeyD: 'right', KeyW: 'jab', KeyS: 'slam' }; // with a sword out, W A S D attack and the arrow keys walk
 const SWORD_MOVES = {
   left:  { name: 'Left swipe',  dur: 0.5,  hitAt: 0.5,  dmg: 1.0, range: 2.7, dot: -0.05, multi: true }, // wide: hits everyone in front of you
   right: { name: 'Right swipe', dur: 0.5,  hitAt: 0.5,  dmg: 1.0, range: 2.7, dot: -0.05, multi: true },
@@ -3082,7 +3178,7 @@ function harvestCrop(c, quiet){
   if(c.g < 1) return false;
   if(spaceFor('wheat') < 1){ fullWarn(); return false; }
   c.g = 0; drawCrop(c);
-  const n = fortune(1); give('wheat', n); if(Math.random() < 0.3) give('seeds', 1);
+  const n = fortune(1); give('wheat', n);
   skillXP('farming', 2); burst(V3(c.x, c.y + 0.5, c.z), 0xe2bd5c, quiet ? 3 : 8, { up: 0.6 });
   if(!quiet){ sfx('chop'); popup(`+${n} Wheat`, V3(c.x, c.y + 1.3, c.z), '#ffe28a'); } else if(Math.random() < 0.3) sfx('crunch');
   return true;
@@ -3135,7 +3231,7 @@ USE_HOOKS.push(() => {
 MENUS.farm = ({ pills, row, ic, btn, sellRows }) => {
   const tool = (k, what) => row(ic(k), ITEMS[k].name, `${what} · you have ${countItem(k)}`, btn(`Buy · ${money(ITEMS[k].buy)}`, 'buy', { k, n: 1 }, '', S.money < ITEMS[k].buy));
   return `<h2>Farmer Fern</h2><p class="sub">"Welcome to the Farms! Harvesting wheat with your fist takes ages — a hoe is quicker, a scythe cuts instantly, and the plow clears whole rows."</p>${pills}
-  <h3>Seeds &amp; workers</h3><div class="rows">${row(ic('seeds'), 'Wheat Seeds', `${money(ITEMS.seeds.buy)} each · plant them anywhere with open grass · you have ${countItem('seeds')}`, btn('Buy 1', 'buy', { k: 'seeds', n: 1 }, '', S.money < ITEMS.seeds.buy) + btn('Buy 10', 'buy', { k: 'seeds', n: 10 }, '', S.money < ITEMS.seeds.buy*10))}
+  <h3>Workers</h3><div class="rows">
   ${row(workerSVG('wheat'), 'Wheat Worker', 'Harvests wheat for you — 120 wheat every 2 min', btn(`Hire · ${money(100)}`, 'hire', { kind: 'wheat', lvl: 1 }, '', S.money < 100))}</div>
   <h3>Farm tools</h3><div class="rows">${tool('hoe', 'Harvests wheat quickly')}${tool('scythe', 'Harvests instantly, several at once')}${tool('plow', 'Ride it through the field to harvest whole rows')}${tool('super_plow', 'Faster than running, rides over anything, and no thirst while you drive')}</div>
   <h3>Sell wheat</h3><div class="rows">${countItem('wheat') ? sellRows(['wheat']) : '<p class="sub">Bring me wheat and I\'ll pay $2 each.</p>'}</div>`;
@@ -3387,20 +3483,23 @@ trees.push(...woodsTrees);
 const jerry = initNPC(makeNPC(WG.at(0, 0), { shirt: 0xb3312a, pants: 0x3a4a6a, hair: 0x5a3a22, skin: 0xd9a57f, beard: true }, 'Tree Chopper Jerry', Math.atan2(-WG.ux, -WG.uz), { hammer: false, menu: 'jerry' }));
 { const ax = makeAxe(); jerry.h.parts.rHand.add(ax); ax.position.y = -0.04; jerry.st.holding = true; }
 const JERRY_TIERS = [50, 100, 150, 200];
+const WOOD_KINDS = ['wood', 'birch_wood', 'spruce_wood', 'acacia_wood', 'jungle_wood', 'maple_wood', 'willow_wood'];
+const anyWood = () => WOOD_KINDS.reduce((n, k) => n + countItem(k), 0); // every kind of wood counts for Jerry
+function takeAnyWood(n){ for(const k of [...WOOD_KINDS].sort((a, b) => countItem(b) - countItem(a))){ const t = Math.min(n, countItem(k)); if(t > 0){ removeItem(k, t); n -= t; } if(n <= 0) break; } }
 MENUS.jerry = ({ pills, row, ic, btn }) => {
   const J = S.jerry, need = JERRY_TIERS[J.tier];
   let line;
   if(J.unlocked && J.justUnlocked) line = '"You\'ve been looking good. Now you should do a tree-chopping challenge!"';
-  else if(need) line = `"Bring me ${need} logs and I'll give you $${need}." You have ${countItem('wood')} wood.`;
+  else if(need) line = `"Bring me ${need} logs of any kind of wood and I'll give you $${need}." You have ${anyWood()} wood.`;
   else line = '"You\'ve chopped more wood than anyone I know. Fancy another race?"';
   let h = `<h2>Tree Chopper Jerry</h2><p class="sub">${line}</p>${pills}<div class="rows">`;
-  if(need) h += row(ic('wood'), `Deliver ${need} logs`, `Reward: ${money(need)} · delivered so far: ${J.delivered}`, btn(`Give ${need} wood`, 'jerryGive', {}, 'alt', countItem('wood') < need));
+  if(need) h += row(ic('wood'), `Deliver ${need} logs`, `Reward: ${money(need)} · delivered so far: ${J.delivered}`, btn(`Give ${need} wood`, 'jerryGive', {}, 'alt', anyWood() < need));
   h += row(`<span class="swatch" style="background:#3d7a2a"></span>`, 'Tree-Chopping Challenge', J.unlocked ? 'An obstacle course with 47 trees. Chop every one and reach the end first! 1st $1,000 · 2nd $500 · 3rd $100' : 'Deliver 300 logs in total to unlock it.', btn('Start the race', 'jerryRace', {}, '', !J.unlocked));
   return h + '</div>';
 };
 MENU_ACTIONS.jerryGive = (ds, u) => {
-  const J = S.jerry, need = JERRY_TIERS[J.tier]; if(!need || countItem('wood') < need) return;
-  removeItem('wood', need); S.money += need; J.delivered += need; J.tier++; sfx('coin'); renderHotbar(); skillXP('foraging', need/2);
+  const J = S.jerry, need = JERRY_TIERS[J.tier]; if(!need || anyWood() < need) return;
+  takeAnyWood(need); S.money += need; J.delivered += need; J.tier++; sfx('coin'); renderHotbar(); skillXP('foraging', need/2);
   J.justUnlocked = false; if(J.delivered >= 300 && !J.unlocked){ J.unlocked = true; J.justUnlocked = true; }
   u.msg(`Thanks! Here's ${money(need)}.${J.justUnlocked ? ' You\'ve unlocked the tree-chopping challenge!' : ''}`);
 };
@@ -4215,7 +4314,7 @@ function renderHotbar(){
   let h = '';
   for(let i=0;i<HOTBAR;i++){ const s = S.slots[i]; h += `<div class="slot ${S.selIdx === i ? 'sel' : ''}" data-hb="${i}"><span class="key">${i + 1}</span>${itemIcon(s)}${itemBadge(s)}</div>`; }
   $('hotbar').innerHTML = h;
-  const s = selItem(); $('hbName').textContent = s ? itemName(s) + (ITEMS[s.k]?.food ? ` · N to eat (+${ITEMS[s.k].food} hunger)` : isSword(s.k) ? ` · arrow keys attack · ${fight.twoHand ? 'two hands (N = one)' : 'one hand (M = two)'}` : s.k === 'throw_axe' ? ' · T to throw' : ITEMS[s.k]?.potion ? ' · N to drink' : isBlock(s.k) ? ' · click where you want it' : '') : '';
+  const s = selItem(); $('hbName').textContent = s ? itemName(s) + (ITEMS[s.k]?.food ? ` · N to eat (+${ITEMS[s.k].food} hunger)` : isSword(s.k) ? ` · W A S D attack, arrows walk · ${fight.twoHand ? 'two hands (N = one)' : 'one hand (M = two)'}` : s.k === 'throw_axe' ? ' · T to throw' : ITEMS[s.k]?.potion ? ' · N to drink' : isBlock(s.k) ? ' · click where you want it' : '') : '';
   if(S.invOpen) renderInventory();
 }
 $('hotbar').addEventListener('click', e => { const el = e.target.closest('[data-hb]'); if(el && S.playing) selectIdx(+el.dataset.hb); });
@@ -4363,7 +4462,7 @@ function renderMenu(){
     h += `<h2>Grocer Gus</h2><p class="sub">"The finest meats and vegetables in all of Skylands! Fresh fish? I'll buy it off you."</p>${pills}<h3>Buy food</h3><div class="rows">${['beef', 'pork', 'mutton', 'bread', 'potato', 'carrot', 'apple'].map(k => buyRow(k, 5)).join('')}</div>`;
     h += `<h3>Sell your fish &amp; food</h3><div class="rows">${mine.length ? sellRows(mine) : '<p class="sub">Catch fish at the pond on Pond Island and I\'ll pay you for them.</p>'}</div>`;
   } else if(M.kind === 'tools'){
-    h += `<h2>Toolsmith Toby</h2><p class="sub">"Iron tools, made right here. Swords for hunting, rods for fishing."</p>${pills}<h3>Tools</h3><div class="rows">${['sword', 'shield', 'sheath', 'axe', 'throw_axe', 'pick', 'rod'].map(k => row(ic(k), ITEMS[k].name, { throw_axe: 'Chops trees and fights · press T to throw it at a tree or an enemy, then go pick it up', sword: 'Win tournaments in the Combat Tower', shield: 'Worn on your arm · hold Right Shift to block', sheath: 'Worn on your hip · holds your sword when it\'s not in your hand', axe: 'Chop down trees', pick: 'Mine stone and dig', rod: 'Catch fish in the pond' }[k] + ` · you have ${countItem(k)}`, btn(`Buy · ${money(ITEMS[k].buy)}`, 'buy', { k, n: 1 }, '', S.money < ITEMS[k].buy))).join('')}</div>`;
+    h += `<h2>Toolsmith Toby</h2><p class="sub">"Iron tools, made right here. Swords for hunting, rods for fishing."</p>${pills}<h3>Tools</h3><div class="rows">${['sword', 'shield', 'sheath', 'axe', 'throw_axe', 'pick', 'rod'].map(k => row(ic(k), ITEMS[k].name, { throw_axe: 'Chops trees and fights · press T to throw it — it knocks over trees and hits enemies, then comes back to you like a boomerang', sword: 'Win tournaments in the Combat Tower', shield: 'Worn on your arm · hold Right Shift to block', sheath: 'Worn on your hip · holds your sword when it\'s not in your hand', axe: 'Chop down trees', pick: 'Mine stone and dig', rod: 'Catch fish in the pond' }[k] + ` · you have ${countItem(k)}`, btn(`Buy · ${money(ITEMS[k].buy)}`, 'buy', { k, n: 1 }, '', S.money < ITEMS[k].buy))).join('')}</div>`;
   } else if(M.kind === 'workers'){
     const ws = carriedWorkers();
     h += `<h2>Workforce Wendy</h2><p class="sub">"Every worker holds 120 items. Hire them here, then hold them in your hotbar and press R to put them down somewhere with room. To upgrade one, walk up to it, press Q to pick it up, and bring it to me."</p>${pills}<h3>Hire</h3><div class="rows">`;
@@ -4590,8 +4689,9 @@ function spaceAction(){
   if(target && target.type === 'ctree'){ MINE_FN.ctree(target); return; }
   if(plow.riding || isFrozen()) return;
   if(P.swimming){ P.vel.y = 5; return; }
-  if(P.grounded){ P.vel.y = 8.4 * (fxOn('jump') ? 1.35 : 1); P.grounded = false; P.doubleJumped = false; sfx('jump'); }
-  else if(!P.doubleJumped){ P.doubleJumped = true; P.vel.y = 8.0; P.flipT = 0; sfx('jump'); } // double jump = backflip
+  if(P.grounded){ P.vel.y = 8.4 * (fxOn('jump') ? 1.35 : 1); P.grounded = false; P.doubleJumped = false; P.tripleJumped = false; sfx('jump'); }
+  else if(!P.doubleJumped){ P.doubleJumped = true; P.vel.y = 8.0; P.flipT = 0; P.flipDir = -1; sfx('jump'); } // double jump = backflip
+  else if(!P.tripleJumped){ P.tripleJumped = true; P.vel.y = 7.4; P.flipT = 0; P.flipDir = 1; sfx('jump'); } // triple jump = front flip
 }
 function useItem(){ // left click
   if(S.menu || S.invOpen || S.dead) return;
@@ -4783,9 +4883,9 @@ function updatePlayer(dt){
   if(P.lock) return;
   let f = 0, r = 0;
   if(!S.dead && !S.invOpen && !S.menu && !isFrozen()){
-    const arrows = !isSword(selKey()); // holding a sword, the arrow keys are your sword moves — walk with W A S D
-    if(keys.KeyW || (arrows && keys.ArrowUp)) f += 1; if(keys.KeyS || (arrows && keys.ArrowDown)) f -= 1;
-    if(keys.KeyD || (arrows && keys.ArrowRight)) r += 1; if(keys.KeyA || (arrows && keys.ArrowLeft)) r -= 1;
+    const wasd = !isSword(selKey()); // holding a sword, W A S D are your sword moves — walk with the arrow keys
+    if((wasd && keys.KeyW) || keys.ArrowUp) f += 1; if((wasd && keys.KeyS) || keys.ArrowDown) f -= 1;
+    if((wasd && keys.KeyD) || keys.ArrowRight) r += 1; if((wasd && keys.KeyA) || keys.ArrowLeft) r -= 1;
   }
   const fwd = V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), right = V3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
   const mv = fwd.multiplyScalar(f).add(right.multiplyScalar(r));
@@ -4801,16 +4901,21 @@ function updatePlayer(dt){
 
   let nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
   if(P.knock){ nx += P.knock.x*dt; nz += P.knock.z*dt; P.knock.multiplyScalar(Math.exp(-dt*3)); if(P.knock.lengthSq() < 0.05) P.knock = null; }
-  for(const c of colliders){ if(!c.on() || (c.y !== undefined && Math.abs(P.pos.y - c.y) > 2)) continue; const dx = nx - c.x, dz = nz - c.z, d = Math.hypot(dx, dz), min = c.r + 0.32; if(d < min && d > 1e-4){ nx = c.x + dx/d*min; nz = c.z + dz/d*min; } }
-  for(const b of boxes){ // walls, doors, desks, placed blocks, wool
-    if(b.on && !b.on()) continue;
-    if(P.pos.y >= b.y1 - 0.05 || P.pos.y + 1.7 <= b.y0) continue;
-    const cx = clamp(nx, b.x0, b.x1), cz = clamp(nz, b.z0, b.z1), dx = nx - cx, dz = nz - cz, d = Math.hypot(dx, dz);
-    if(d >= 0.3) continue;
-    if(d > 1e-5){ nx = cx + dx/d*0.3; nz = cz + dz/d*0.3; }
-    else { const o = [[b.x0 - 0.3 - nx, 0], [b.x1 + 0.3 - nx, 0], [0, b.z0 - 0.3 - nz], [0, b.z1 + 0.3 - nz]].sort((a, c) => Math.abs(a[0] + a[1]) - Math.abs(c[0] + c[1]))[0]; nx += o[0]; nz += o[1]; }
-  }
-  if(nz > 1000){ [nx, nz] = ringClamp(P.pos.x, P.pos.z, nx, nz, P.pos.y); [nx, nz] = zoneClamp(P.pos.x, P.pos.z, nx, nz, P.pos.y); if(arena.active){ const ax = nx - ARENA.x, az = nz - ARENA.z, ad = Math.hypot(ax, az); if(ad > ARENA.r - 0.6){ nx = ARENA.x + ax/ad*(ARENA.r - 0.6); nz = ARENA.z + az/ad*(ARENA.r - 0.6); } } } // crystal walls, paths & places
+  // move in small steps so nothing fast (like the Super Plow) can skip through a wall in one frame
+  { const tx = nx, tz = nz, steps = Math.max(1, Math.ceil(Math.hypot(tx - P.pos.x, tz - P.pos.z) / 0.1)); let cx0 = P.pos.x, cz0 = P.pos.z;
+    for(let si = 1; si <= steps; si++){ nx = cx0 + (tx - P.pos.x)/steps; nz = cz0 + (tz - P.pos.z)/steps;
+    for(const c of colliders){ if(!c.on() || (c.y !== undefined && Math.abs(P.pos.y - c.y) > 2)) continue; const dx = nx - c.x, dz = nz - c.z, d = Math.hypot(dx, dz), min = c.r + 0.32; if(d < min && d > 1e-4){ nx = c.x + dx/d*min; nz = c.z + dz/d*min; } }
+    for(const b of boxes){ // walls, doors, desks, placed blocks, wool
+      if(b.on && !b.on()) continue;
+      if(P.pos.y >= b.y1 - 0.05 || P.pos.y + 1.7 <= b.y0) continue;
+      const cx = clamp(nx, b.x0, b.x1), cz = clamp(nz, b.z0, b.z1), dx = nx - cx, dz = nz - cz, d = Math.hypot(dx, dz);
+      if(d >= 0.3) continue;
+      if(d > 1e-5){ nx = cx + dx/d*0.3; nz = cz + dz/d*0.3; }
+      else { const o = [[b.x0 - 0.3 - nx, 0], [b.x1 + 0.3 - nx, 0], [0, b.z0 - 0.3 - nz], [0, b.z1 + 0.3 - nz]].sort((a, c) => Math.abs(a[0] + a[1]) - Math.abs(c[0] + c[1]))[0]; nx += o[0]; nz += o[1]; }
+    }
+      if(nz > 1000){ [nx, nz] = ringClamp(cx0, cz0, nx, nz, P.pos.y); [nx, nz] = zoneClamp(cx0, cz0, nx, nz, P.pos.y); } // the Hub's stone walls, paths & places
+      cx0 = nx; cz0 = nz; } }
+  if(nz > 1000){ if(arena.active){ const ax = nx - ARENA.x, az = nz - ARENA.z, ad = Math.hypot(ax, az); if(ad > ARENA.r - 0.6){ nx = ARENA.x + ax/ad*(ARENA.r - 0.6); nz = ARENA.z + az/ad*(ARENA.r - 0.6); } } } // crystal walls, paths & places
   [nx, nz] = bridgeRails(P.pos.x, P.pos.z, nx, nz);
   if(fence.built && !inHub() && P.pos.y > -1 && P.pos.y < 1.6) [nx, nz] = fenceClamp(P.pos.x, P.pos.z, nx, nz);
   if(P.crouch && P.grounded){ // crouching: never step off an edge — slide along it instead
@@ -4839,7 +4944,7 @@ function updatePlayer(dt){
     if(P.swimming){ P.swimming = false; if(g !== null){ P.pos.y = g; P.vel.y = 0; P.grounded = true; } }
     P.vel.y -= 24 * dt; if(P.vel.y < -40) P.vel.y = -40;
     P.pos.y += P.vel.y * dt;
-    if(g !== null && P.pos.y <= g && prevY >= g - 0.75){ if(P.slam){ P.slam = false; fightDamage(12); burst(P.pos.clone(), 0xc080ff, 16, { up: 0.8 }); } P.pos.y = g; P.vel.y = 0; P.grounded = true; P.doubleJumped = false; }
+    if(g !== null && P.pos.y <= g && prevY >= g - 0.75){ if(P.slam){ P.slam = false; fightDamage(12); burst(P.pos.clone(), 0xc080ff, 16, { up: 0.8 }); } P.pos.y = g; P.vel.y = 0; P.grounded = true; P.doubleJumped = false; P.tripleJumped = false; }
     else if(g !== null && P.grounded && P.pos.y - g < 0.3 && P.vel.y <= 0){ P.pos.y = g; P.vel.y = 0; }
     else P.grounded = false;
   }
@@ -4939,7 +5044,7 @@ function updateStats(dt){
   S.health = Math.max(0, S.health - dt * hd);
   if(S.health <= 0) die(S.thirst <= 0 ? 'You died of thirst.' : S.hunger <= 0 ? 'You starved.' : 'You ran out of health.');
   // hail stings a little when you're out in it
-  if(hail.visible && wx.hail > 0.5 && !P.block){ hailHurt -= dt; if(hailHurt <= 0){ hailHurt = R(1.6, 2.6); S.health = Math.max(0, S.health - 1); popup('-1 hail', P.pos.clone().add(V3(0, 2.3, 0)), '#cfe8ff'); if(S.health <= 0) die('The hail got you. Find shelter next time!'); } }
+  if(hail.visible && wx.hail > 0.5 && !P.block){ hailHurt -= dt; if(hailHurt <= 0 && roofOverhead()) hailHurt = R(1.6, 2.6); if(hailHurt <= 0){ hailHurt = R(1.6, 2.6); S.health = Math.max(0, S.health - 1); popup('-1 hail', P.pos.clone().add(V3(0, 2.3, 0)), '#cfe8ff'); if(S.health <= 0) die('The hail got you. Find shelter next time!'); } }
 }
 function updateFlags(){
   if(bridge1.done && !F.island2 && P.grounded && pointInPoly(P.pos.x, P.pos.z, island2.poly) && distToPoly(P.pos.x, P.pos.z, island2.poly) > 1.2) F.island2 = true;
@@ -4947,12 +5052,14 @@ function updateFlags(){
 }
 const _camT = V3(), _camP = V3(), _camD = V3(), camRay = new THREE.Raycaster();
 function updateCamera(dt, instant = false){
-  const fp = fight.fp && S.playing && !S.dead; player.parts.head.visible = !fp;
+  const fp = fight.fp && S.playing && !S.dead; player.parts.head.visible = !fp; player.root.visible = !(fp && P.swimming);
   if(fp){ // first person: the camera sits where your eyes are
     const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), cp = Math.cos(cam.pitch);
-    cam.target.set(P.pos.x, P.pos.y + (P.crouch && !P.block ? 1.25 : plow.riding ? 1.2 : 1.66), P.pos.z);
+    const now = clock.elapsedTime, swimBob = P.swimming ? Math.sin(now*2.2)*0.035 : 0; // swimming: eyes just above the water, bobbing gently
+    cam.target.set(P.pos.x, P.pos.y + (P.swimming ? 1.2 + swimBob : P.crouch && !P.block ? 1.25 : plow.riding ? 1.2 : 1.66), P.pos.z);
     camera.position.set(cam.target.x + fx*0.16, cam.target.y, cam.target.z + fz*0.16);
     _camT.set(camera.position.x + fx*cp, camera.position.y - Math.sin(cam.pitch), camera.position.z + fz*cp); camera.lookAt(_camT);
+    if(P.swimming) camera.rotateZ(Math.sin(now*1.6)*0.025); // a little sway from the water
     sky.position.copy(camera.position); sun.position.copy(cam.target).addScaledVector(lightDir, 70); sun.target.position.copy(cam.target);
     return;
   }
@@ -4999,6 +5106,19 @@ const stars = (() => {
 })();
 const moon = new THREE.Mesh(new THREE.SphereGeometry(14, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf2f0e6, fog: false, transparent: true }));
 scene.add(moon);
+// rain, snow and hail stop when they land on a block — nothing falls through, or underneath one
+const precipCols = { n: -1, map: new Map() };
+function blockTopAt(x, z){
+  if(precipCols.n !== placed.length){ precipCols.n = placed.length; precipCols.map.clear(); // rebuild whenever blocks are added or taken away
+    for(const b of placed) for(let cx = Math.floor(b.b.x0); cx <= Math.floor(b.b.x1); cx++) for(let cz = Math.floor(b.b.z0); cz <= Math.floor(b.b.z1); cz++){ const k = cx + ',' + cz; if(!precipCols.map.has(k)) precipCols.map.set(k, []); precipCols.map.get(k).push(b.b); } }
+  const list = precipCols.map.get(Math.floor(x) + ',' + Math.floor(z)); if(!list) return -Infinity;
+  let top = -Infinity; for(const b of list) if(x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && b.y1 > top) top = b.y1; return top;
+}
+const upRay = new THREE.Raycaster(), RAY_UP = V3(0, 1, 0);
+function roofOverhead(){ // a placed block, a roof or a floor somewhere above your head
+  if(blockTopAt(P.pos.x, P.pos.z) > P.pos.y + 1.2) return true;
+  upRay.set(V3(P.pos.x, P.pos.y + 1.75, P.pos.z), RAY_UP); upRay.far = 60; return upRay.intersectObjects(walkables, false).length > 0;
+}
 // rain & snow follow the camera
 const RAIN_N = 1600, rainPos = new Float32Array(RAIN_N*6);
 const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
@@ -5053,13 +5173,13 @@ function updateSkyCycle(dt){
   const sheltered = (inHub() && P.pos.y < -3) || buildings.some(B => B.inside) || AREAS.some(a => (a.name === 'Wizard Tower' || a.name === "Witch's Hut" || a.name === 'Combat Tower') && a.inside());
   const ra = sheltered ? 0 : wx.rain, sa = sheltered ? 0 : wx.snow, c = camera.position;
   rain.material.opacity = ra * 0.55; rain.visible = ra > 0.02;
-  if(rain.visible){ for(let i=0;i<RAIN_N;i++){ const d = rainDrops[i]; d.y -= d.v*dt; if(d.y < -6){ d.y = 22; d.x = R(-22, 22); d.z = R(-22, 22); } const x = c.x + d.x, y = c.y + d.y, z = c.z + d.z; rainPos.set([x, y, z, x + 0.05, y + 0.7, z + 0.03], i*6); } rainGeo.attributes.position.needsUpdate = true; }
+  if(rain.visible){ for(let i=0;i<RAIN_N;i++){ const d = rainDrops[i]; d.y -= d.v*dt; if(d.y < -6 || c.y + d.y < blockTopAt(c.x + d.x, c.z + d.z)){ d.y = 22; d.x = R(-22, 22); d.z = R(-22, 22); } const x = c.x + d.x, y = c.y + d.y, z = c.z + d.z; rainPos.set([x, y, z, x + 0.05, y + 0.7, z + 0.03], i*6); } rainGeo.attributes.position.needsUpdate = true; }
   const ha = sheltered ? 0 : wx.hail;
   hail.material.opacity = ha * 0.95; hail.visible = ha > 0.02;
-  if(hail.visible){ for(let i=0;i<HAIL_N;i++){ const h = stones[i]; h.y -= h.v*dt; if(h.y < -6){ h.y = 22; h.x = R(-22, 22); h.z = R(-22, 22); } hailPos.set([c.x + h.x, c.y + h.y, c.z + h.z], i*3); } hailGeo.attributes.position.needsUpdate = true;
+  if(hail.visible){ for(let i=0;i<HAIL_N;i++){ const h = stones[i]; h.y -= h.v*dt; if(h.y < -6 || c.y + h.y < blockTopAt(c.x + h.x, c.z + h.z)){ h.y = 22; h.x = R(-22, 22); h.z = R(-22, 22); } hailPos.set([c.x + h.x, c.y + h.y, c.z + h.z], i*3); } hailGeo.attributes.position.needsUpdate = true;
     if(Math.random() < dt * 25 * ha){ const gy = groundAt(P.pos.x + R(-6, 6), P.pos.z + R(-6, 6), P.pos.y + 3); if(gy !== null) burst(V3(P.pos.x + R(-6, 6), gy + 0.05, P.pos.z + R(-6, 6)), 0xe8f6ff, 2, { up: 0.4, spread: 0.8, size: 0.6, life: 0.4 }); } }
   snow.material.opacity = sa * 0.9; snow.visible = sa > 0.02;
-  if(snow.visible){ const now = clock.elapsedTime; for(let i=0;i<SNOW_N;i++){ const f = flakes[i]; f.y -= f.v*dt; if(f.y < -6){ f.y = 22; f.x = R(-22, 22); f.z = R(-22, 22); } snowPos.set([c.x + f.x + Math.sin(now + f.ph)*0.6, c.y + f.y, c.z + f.z + Math.cos(now*0.7 + f.ph)*0.6], i*3); } snowGeo.attributes.position.needsUpdate = true; }
+  if(snow.visible){ const now = clock.elapsedTime; for(let i=0;i<SNOW_N;i++){ const f = flakes[i]; f.y -= f.v*dt; if(f.y < -6 || c.y + f.y < blockTopAt(c.x + f.x, c.z + f.z)){ f.y = 22; f.x = R(-22, 22); f.z = R(-22, 22); } snowPos.set([c.x + f.x + Math.sin(now + f.ph)*0.6, c.y + f.y, c.z + f.z + Math.cos(now*0.7 + f.ph)*0.6], i*3); } snowGeo.attributes.position.needsUpdate = true; }
 }
 
 // ---------------------------------------------------------------- loop
@@ -5081,7 +5201,7 @@ function frame(){
     if(!S.dead && !S.invOpen && !S.menu) updateStats(dt);
     updateFlags(); checkObjectives();
   }
-  animateHuman(player, { speed: P.speed, grounded: P.grounded, swimming: P.swimming, swing: swing.t, kind: swing.kind, hitAt: swing.hitAt, two: fight.twoHand && isSword(selKey()), fp: fight.fp && S.playing, holding: !!S.equipped || handBlock.visible, sword: isSword(selKey()) && swing.t < 0, crouch: P.crouch && !P.block, block: P.block, sit: plow.riding, flip: P.flipT ?? -1, fishing: fishing.state !== 'none' }, dt);
+  animateHuman(player, { speed: P.speed, grounded: P.grounded, swimming: P.swimming, swing: swing.t, kind: swing.kind, hitAt: swing.hitAt, two: fight.twoHand && isSword(selKey()), fp: fight.fp && S.playing, holding: !!S.equipped || handBlock.visible, sword: isSword(selKey()) && swing.t < 0, crouch: P.crouch && !P.block, block: P.block, sit: plow.riding, flip: P.flipT ?? -1, flipDir: P.flipDir, fishing: fishing.state !== 'none' }, dt);
   if(active) for(const f of UPDATERS) f(dt, now);
   updateTrees(dt, now); updateNPCs(dt); updateWorkers(dt); updateHub(dt, now); updateAnimals(dt); updateNPCCombat(dt); updateFishing(dt); updateGhost(); regrowGrass(); regrowHumps(); growMainland(dt); updateMisc(dt, now);
   updateClouds(dt); updateParticles(dt); updatePopups(dt); updateSkyCycle(dt);
