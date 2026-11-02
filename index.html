@@ -1,5 +1,7 @@
 <meta charset="utf-8">
 <title>Skylands</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E %3Cpolygon points='4,18 32,32 32,60 4,46' fill='%238a5a33'/%3E %3Cpolygon points='32,32 60,18 60,46 32,60' fill='%236b4426'/%3E %3Cg fill='%235e3a1f'%3E%3Crect x='9' y='33' width='3' height='3'/%3E%3Crect x='19' y='42' width='3' height='3'/%3E%3Crect x='12' y='45' width='2' height='2'/%3E%3Crect x='24' y='50' width='3' height='2'/%3E%3C/g%3E %3Cg fill='%234d3018'%3E%3Crect x='40' y='40' width='3' height='3'/%3E%3Crect x='50' y='33' width='3' height='3'/%3E%3Crect x='45' y='49' width='2' height='2'/%3E%3C/g%3E %3Cpolygon points='4,18 32,32 32,39 28,37 27,41 22,35 18,37 16,32 12,33 10,28 6,30 4,26' fill='%235aa83c'/%3E %3Cpolygon points='32,32 60,18 60,26 57,27 55,31 51,30 48,35 44,34 41,38 37,37 35,40 32,39' fill='%23468a2e'/%3E %3Cpolygon points='32,4 60,18 32,32 4,18' fill='%236cc24a'/%3E %3Cg fill='%2386d65f'%3E%3Cpolygon points='22,12 26,14 22,16 18,14'/%3E%3Cpolygon points='38,10 42,12 38,14 34,12'/%3E%3Cpolygon points='44,20 48,22 44,24 40,22'/%3E%3Cpolygon points='28,22 32,24 28,26 24,24'/%3E%3C/g%3E %3Cg fill='%2357a83a'%3E%3Cpolygon points='32,15 35,16.5 32,18 29,16.5'/%3E%3Cpolygon points='14,19 17,20.5 14,22 11,20.5'/%3E%3Cpolygon points='48,15 51,16.5 48,18 45,16.5'/%3E%3C/g%3E %3Cpolygon points='32,4 60,18 60,46 32,60 4,46 4,18' fill='none' stroke='%232b1a0e' stroke-width='1.6' stroke-linejoin='round'/%3E %3Cpath d='M4,18 L32,32 L60,18 M32,32 L32,60' fill='none' stroke='%232b1a0e' stroke-opacity='.35' stroke-width='1'/%3E %3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E %3Cpolygon points='4,18 32,32 32,60 4,46' fill='%238a5a33'/%3E %3Cpolygon points='32,32 60,18 60,46 32,60' fill='%236b4426'/%3E %3Cg fill='%235e3a1f'%3E%3Crect x='9' y='33' width='3' height='3'/%3E%3Crect x='19' y='42' width='3' height='3'/%3E%3Crect x='12' y='45' width='2' height='2'/%3E%3Crect x='24' y='50' width='3' height='2'/%3E%3C/g%3E %3Cg fill='%234d3018'%3E%3Crect x='40' y='40' width='3' height='3'/%3E%3Crect x='50' y='33' width='3' height='3'/%3E%3Crect x='45' y='49' width='2' height='2'/%3E%3C/g%3E %3Cpolygon points='4,18 32,32 32,39 28,37 27,41 22,35 18,37 16,32 12,33 10,28 6,30 4,26' fill='%235aa83c'/%3E %3Cpolygon points='32,32 60,18 60,26 57,27 55,31 51,30 48,35 44,34 41,38 37,37 35,40 32,39' fill='%23468a2e'/%3E %3Cpolygon points='32,4 60,18 32,32 4,18' fill='%236cc24a'/%3E %3Cg fill='%2386d65f'%3E%3Cpolygon points='22,12 26,14 22,16 18,14'/%3E%3Cpolygon points='38,10 42,12 38,14 34,12'/%3E%3Cpolygon points='44,20 48,22 44,24 40,22'/%3E%3Cpolygon points='28,22 32,24 28,26 24,24'/%3E%3C/g%3E %3Cg fill='%2357a83a'%3E%3Cpolygon points='32,15 35,16.5 32,18 29,16.5'/%3E%3Cpolygon points='14,19 17,20.5 14,22 11,20.5'/%3E%3Cpolygon points='48,15 51,16.5 48,18 45,16.5'/%3E%3C/g%3E %3Cpolygon points='32,4 60,18 60,46 32,60 4,46 4,18' fill='none' stroke='%232b1a0e' stroke-width='1.6' stroke-linejoin='round'/%3E %3Cpath d='M4,18 L32,32 L60,18 M32,32 L32,60' fill='none' stroke='%232b1a0e' stroke-opacity='.35' stroke-width='1'/%3E %3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800;900&display=swap">
 <style>
@@ -378,12 +380,14 @@ function pixNoise(g,s,amt){ const im=g.getImageData(0,0,s,s),d=im.data; for(let 
 function pick(arr){ return arr[Math.floor(rand()*arr.length)]; }
 
 const C = {};
-{ // grass
-  const s=256, c=makeCanvas(s), g=c.getContext('2d');
-  g.fillStyle='#4e8c32'; g.fillRect(0,0,s,s);
-  for(let i=0;i<80;i++) blotch(g,s,R(0,s),R(0,s),R(8,42),pick(['70,128,44','96,150,56','58,108,38','118,160,62']),0.4);
-  for(let i=0;i<4200;i++){ const x=R(0,s),y=R(0,s),l=R(2,6); g.strokeStyle=`hsl(${R(88,112)},${R(42,62)}%,${R(24,46)}%)`; g.lineWidth=1; g.beginPath(); g.moveTo(x,y); g.lineTo(x+R(-1.5,1.5),y-l); g.stroke(); }
-  pixNoise(g,s,14); C.grass=c;
+{ // grass: soft light/dark patches, clover, dry blades, specks of soil, and thousands of fine blades
+  const s=512, c=makeCanvas(s), g=c.getContext('2d');
+  g.fillStyle='#4a8530'; g.fillRect(0,0,s,s);
+  for(let i=0;i<70;i++) blotch(g,s,R(0,s),R(0,s),R(40,120),pick(['62,118,40','84,140,52','52,100,34','104,150,58','92,128,48']),0.35);
+  for(let i=0;i<40;i++) blotch(g,s,R(0,s),R(0,s),R(4,14),pick(['96,76,48','84,66,40']),0.5); // bits of soil showing through
+  for(let i=0;i<120;i++){ const x=R(0,s),y=R(0,s); wrapDraw(s,x,y,8,(X,Y)=>{ for(let k=0;k<3;k++){ const a=k*2.1+R(-0.2,0.2); g.fillStyle=`hsl(${R(95,110)},${R(40,55)}%,${R(30,40)}%)`; g.beginPath(); g.ellipse(X+Math.cos(a)*2.6,Y+Math.sin(a)*2.6,2.6,2.0,a,0,7); g.fill(); } }); } // clover
+  for(let i=0;i<16000;i++){ const x=R(0,s),y=R(0,s),l=R(3,9),dry=rand()<0.08; g.strokeStyle=dry?`hsl(${R(45,60)},${R(35,50)}%,${R(45,60)}%)`:`hsl(${R(85,115)},${R(38,64)}%,${R(20,48)}%)`; g.lineWidth=R(0.7,1.4); g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+R(-1.5,1.5),y-l*0.5,x+R(-3,3),y-l); g.stroke(); }
+  pixNoise(g,s,10); C.grass=c;
 }
 { // dirt
   const s=256, c=makeCanvas(s), g=c.getContext('2d');
@@ -402,15 +406,17 @@ function stoneCanvas(base, blots, noise){
 }
 C.stone = stoneCanvas('#8b8e91',['112,114,118','98,100,104','126,126,122','78,80,86'],20);
 C.rock  = stoneCanvas('#d9d3c8',['236,230,220','200,194,184','220,214,204','180,172,162'],28);
-{ // cobblestone
+{ // cobblestone: irregular rounded stones of different sizes and colours, set in dark mortar
   const s=256, c=makeCanvas(s), g=c.getContext('2d');
-  g.fillStyle='#3a3a3d'; g.fillRect(0,0,s,s);
-  const n=5, cell=s/n;
-  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
-    const x=(i+0.5)*cell+R(-5,5)+(j%2)*cell*0.5, y=(j+0.5)*cell+R(-4,4), rx=R(19,24), ry=R(17,22), rot=R(0,3);
-    wrapDraw(s,x,y,26,(X,Y)=>{ const v=R(115,160)|0; const gr=g.createRadialGradient(X-6,Y-6,2,X,Y,26); gr.addColorStop(0,`rgb(${v+30},${v+30},${v+28})`); gr.addColorStop(1,`rgb(${v-40},${v-40},${v-38})`); g.fillStyle=gr; g.beginPath(); g.ellipse(X,Y,rx,ry,rot,0,7); g.fill(); });
-  }
-  pixNoise(g,s,18); C.cobble=c;
+  g.fillStyle='#2e2c2a'; g.fillRect(0,0,s,s);
+  const pts=[]; for(let i=0;i<34;i++) pts.push([R(0,s),R(0,s)]);
+  for(let rep=0;rep<3;rep++) for(const p of pts){ let fx=0,fy=0; for(const q of pts){ if(q===p) continue; let dx=p[0]-q[0], dy=p[1]-q[1]; dx-=Math.round(dx/s)*s; dy-=Math.round(dy/s)*s; const d=Math.hypot(dx,dy)||1; if(d<48){ fx+=dx/d*(48-d); fy+=dy/d*(48-d); } } p[0]=(p[0]+fx*0.15+s)%s; p[1]=(p[1]+fy*0.15+s)%s; } // spread them out evenly
+  for(const [x,y] of pts){ const r=R(17,23), n=9, hue=R(25,45), sat=R(4,12), L=R(38,58), off=[...Array(n)].map(()=>R(0.78,1.08)), rot=R(0,6);
+    wrapDraw(s,x,y,r+4,(X,Y)=>{ const path=()=>{ g.beginPath(); for(let k=0;k<=n;k++){ const a=rot+k/n*Math.PI*2, rr=r*off[k%n]; k?g.lineTo(X+Math.cos(a)*rr,Y+Math.sin(a)*rr):g.moveTo(X+Math.cos(a)*rr,Y+Math.sin(a)*rr); } g.closePath(); };
+      g.save(); path(); g.lineJoin='round'; g.lineWidth=7; g.strokeStyle=`hsl(${hue},${sat}%,${L-6}%)`; g.stroke(); g.fillStyle=`hsl(${hue},${sat}%,${L}%)`; g.fill(); g.clip();
+      const gr=g.createRadialGradient(X-r*0.35,Y-r*0.4,2,X,Y,r*1.1); gr.addColorStop(0,'rgba(255,255,255,0.28)'); gr.addColorStop(0.6,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,0.35)'); g.fillStyle=gr; g.fillRect(X-r-4,Y-r-4,2*r+8,2*r+8);
+      for(let k=0;k<25;k++){ g.fillStyle=`rgba(${rand()<0.5?'0,0,0':'255,255,255'},${R(0.05,0.15)})`; g.fillRect(X+R(-r,r),Y+R(-r,r),R(1,3),R(1,3)); } g.restore(); }); }
+  pixNoise(g,s,12); C.cobble=c;
 }
 { // bark
   const s=256, c=makeCanvas(s), g=c.getContext('2d');
@@ -575,7 +581,7 @@ const MAT = {
   gold: new THREE.MeshStandardMaterial({ color: 0xd9a83a, metalness: 1, roughness: 0.3, envMap: envTex }),
   handle: new THREE.MeshStandardMaterial({ color: 0x8e5d34, roughness: 0.55 }),
   pframe: new THREE.MeshStandardMaterial({ map: tex(C.pframe, 1), roughness: 0.25, metalness: 0.25, envMap: envTex, emissive: 0x2a0b4d, emissiveIntensity: 0.6 }),
-  cloud: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0xaebfd6, emissiveIntensity: 0.35 }),
+  cloud: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0xc4d2e6, emissiveIntensity: 0.22, flatShading: false }),
   rope: new THREE.MeshStandardMaterial({ color: 0x9b7a4f, roughness: 1 }),
 };
 const timeU = { value: 0 };
@@ -726,16 +732,16 @@ function makeIsland({ poly, holes = [], name, depth = 1, walk = true, grassDensi
     const de = distToPoly(px, pz, poly); if(de < 0.9) continue;
     const r = Math.min(R(1.7, 2.7), de + 0.6);
     const h = Math.min(18, (2.6 + de * 1.45) * R(0.7, 1.2) * depth);
-    const cg = new THREE.ConeGeometry(r, h, 14, 8);
-    cg.rotateX(Math.PI); cg.translate(px, -2.2 - h/2, pz);
+    const cg = new THREE.CylinderGeometry(r, r*R(0.12, 0.3), h, 14, 10); // blunt, chunky rock instead of a sharp spike
+    cg.translate(px, -2.2 - h/2, pz);
     const pos = cg.attributes.position; const cols = new Float32Array(pos.count*3); const tmp = new THREE.Color();
     for(let i=0;i<pos.count;i++){
       const vx=pos.getX(i), vy=pos.getY(i), vz=pos.getZ(i);
       const n = fbm(vx*0.35, vy*0.35, vz*0.35);
-      const dx=vx-px, dz=vz-pz; const s = 1 + 0.45*n;
+      const dx=vx-px, dz=vz-pz, ledge = 1 + 0.16*Math.sign(Math.sin(vy*1.7 + px)) * (0.5 + 0.5*fbm(vx*0.8, vy*0.8, vz*0.8)); const s = (1 + 0.5*n) * ledge; // lumpy, with rough ledges
       pos.setXYZ(i, px + dx*s, vy + fbm(vx*0.5+3, vy*0.2, vz*0.5)*0.6, pz + dz*s);
-      const t = clamp((-2.2 - vy) / 9, 0, 1);
-      if(t < 0.35) tmp.copy(cTop).lerp(cMid, t/0.35); else tmp.copy(cMid).lerp(cBot, (t-0.35)/0.65);
+      const t = clamp((-2.2 - vy) / 9, 0, 1), band = 0.85 + 0.15*Math.sin(vy*2.3 + fbm(vx*0.3, 0, vz*0.3)*3); // layers of rock
+      if(t < 0.35) tmp.copy(cTop).lerp(cMid, t/0.35); else tmp.copy(cMid).lerp(cBot, (t-0.35)/0.65); tmp.multiplyScalar(band);
       cols[i*3]=tmp.r; cols[i*3+1]=tmp.g; cols[i*3+2]=tmp.b;
     }
     cg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
@@ -994,12 +1000,15 @@ const trees = [ makeTree(TREE1_POS, 't1'), makeTree(TREE3_POS, 't3') ];
 
 // bushes & flowers on island 1
 const bushes = [];
+const BUSH_LEAF = leafMat(0x4f8a34, speciesLeafTex('oak', 70, 9, 14));
+function bushGeo(s){ // a few overlapping clumps of leaf cards around small dark twiggy centres
+  const cl = []; for(let i=0;i<5;i++) cl.push([R(-0.45, 0.45)*s, R(0.3, 0.55)*s, R(-0.45, 0.45)*s, R(0.38, 0.55)*s]);
+  return crownCards(cl, { size: 0.5*Math.max(0.7, s), density: 170, sy: 0.85, tints: [[1, 1, 1], [0.9, 1.05, 0.85]] });
+}
 function makeBush(x, z, s){
-  const gs = [];
-  for(let i=0;i<5;i++){ const g = ico(R(0.35,0.55)*s, 2); const gp=g.attributes.position; const ox=R(-0.5,0.5)*s, oz=R(-0.5,0.5)*s, oy=R(0.25,0.5)*s;
-    for(let k=0;k<gp.count;k++){ const vx=gp.getX(k),vy=gp.getY(k),vz=gp.getZ(k); const n=1+fbm(vx*3+i,vy*3,vz*3)*0.3; gp.setXYZ(k,vx*n+ox,vy*n*0.8+oy,vz*n+oz); } gs.push(g); }
-  const g = mergeGeometries(gs); g.computeVertexNormals();
-  const m = new THREE.Mesh(g, MAT.leaves); m.position.set(x, 0, z); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+  const m = new THREE.Group(); m.position.set(x, 0, z); scene.add(m);
+  const core = new THREE.Mesh(blobGeo(0.3*s, 0, 0.32*s, 0, 0.8, 2), coreMat(0x3f7a2a)); core.castShadow = true; m.add(core);
+  const leaves = new THREE.Mesh(bushGeo(s), BUSH_LEAF); leaves.castShadow = true; leaves.receiveShadow = true; m.add(leaves);
   const B = { mesh: m, x, z, s, alive: true }; bushes.push(B);
   colliders.push({ x, z, r: 0.55*s, on: () => B.alive });
   return m;
@@ -1643,9 +1652,9 @@ const clouds = (() => {
     const center = V3(Math.cos(a)*d - 5, R(-45, 35), Math.sin(a)*d - 25);
     // clouds drift sideways forever, so any cloud level with the islands would eventually pass through them — keep those well above or below
     if(center.z > -78 && center.z < 22 && center.y > -38 && center.y < 28) center.y = center.y > -5 ? R(30, 42) : R(-52, -40);
-    const n = Math.floor(R(6, 12)), puffs = [];
+    const n = Math.floor(R(16, 26)), puffs = [];
     const sz = R(0.8, 1.7);
-    for(let i=0;i<n;i++) puffs.push({ o: V3(R(-5,5)*sz, R(-0.5,1.6)*sz, R(-2.5,2.5)*sz), s: R(2, 4)*sz });
+    for(let i=0;i<n;i++){ const ox = R(-6, 6), oz = R(-3, 3), mid = 1 - Math.min(1, Math.hypot(ox/6, oz/3)); puffs.push({ o: V3(ox*sz, (R(0, 0.6) + mid*R(0.6, 2.2))*sz, oz*sz), s: R(2.6, 4.2)*sz*(0.6 + mid*0.7) }); } // a flat base with billows piled up in the middle
     defs.push({ center, puffs, speed: R(0.6, 1.4) });
   }
   for(let c=0;c<14;c++){ // a few over the Hub
@@ -2665,7 +2674,17 @@ function groundDisc(x, z, r, mat, holes = [], underMat = MAT.dirt){
   const g = new THREE.ShapeGeometry(sh, 48); g.rotateX(-Math.PI/2);
   const m = new THREE.Mesh(g, mat); m.position.set(x, 0, z); m.receiveShadow = true; scene.add(m); walkables.push(m);
   const under = new THREE.Mesh(new THREE.ConeGeometry(r, r*0.8, 28, 1, true).rotateX(Math.PI), underMat); under.position.set(x, -r*0.4 - 0.03, z); scene.add(under);
+  if(mat.map && mat.map.image === C.grass) scatterBlades(x, z, r - 0.6, holes, mat.color); // real grass growing on grassy ground
   return m;
+}
+function scatterBlades(x, z, r, holes = [], tint, density = 3){
+  const count = Math.floor(Math.PI*r*r*density), inst = new THREE.InstancedMesh(BLADE_GEO, BLADE_MAT, count);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(), col = new THREE.Color(), t = tint ? new THREE.Color(tint) : null; let n = 0;
+  for(let i=0;i<count*2 && n<count;i++){ const a = R(0, 6.28), d = r*Math.sqrt(R(0, 1)), px = x + Math.cos(a)*d, pz = z + Math.sin(a)*d;
+    if(holes.some(h => h.r ? Math.hypot(px - h.x, pz - h.z) < h.r + 0.4 : pointInPoly(px, pz, h))) continue;
+    q.setFromAxisAngle(V3(0, 1, 0), R(0, 6.28)); sc.set(R(0.8, 1.3), R(0.5, 1.2), 1); m4.compose(V3(px, 0, pz), q, sc); inst.setMatrixAt(n, m4);
+    col.setHSL(R(0.23, 0.3), R(0.5, 0.7), R(0.28, 0.42)); if(t) col.multiply(t).multiplyScalar(1.4); inst.setColorAt(n, col); n++; }
+  inst.count = n; inst.receiveShadow = true; scene.add(inst); return inst;
 }
 function pathStrip(a, b, w, mat, y = 0.02){
   const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz);
